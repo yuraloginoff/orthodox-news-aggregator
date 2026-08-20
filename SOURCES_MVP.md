@@ -12,7 +12,6 @@
 | R4 | Одинцовская епархия | Одинцовская | Одинцово | — | https://odinceparh.ru | https://odinceparh.ru/rss | RSS | medium | verified |
 | R5 | Подольская епархия | Подольская | Подольск | — | https://podolskeparh.ru/ | https://podolskeparh.ru/feed/ | RSS | medium | verified |
 | R6 | Сергиево-Посадская епархия | Сергиево-Посадская | Сергиев Посад | — | https://eparhsp.ru/ | https://eparhsp.ru/feed/ | RSS | medium | verified |
-
 | R7 | Санкт-Петербургская епархия | Санкт-Петербургская | Санкт-Петербург | 5+ млн | https://mitropolia.spb.ru/news/av/ | https://aquaviva.ru/news_rss.php | RSS | high | verified |
 | R8 | Выборгская епархия | Выборгская | Выборг | — | https://eparchiya-viborg.ru/ | https://eparchiya-viborg.ru/feed | RSS | medium | verified |
 | R9 | Гатчинская епархия | Гатчинская | Гатчина | — | https://gatchinaeparhia.ru/ | https://gatchinaeparhia.ru/feed/ | RSS | medium | verified |
