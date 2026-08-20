@@ -7,25 +7,32 @@
 | № | Название | Епархия | Город | Население | Сайт | RSS | Тип | Приоритет | Статус |
 |---|----------|---------|-------|-----------|------|-----|-----|-----------|--------|
 | R1 | Московская городская епархия | Московская | Москва | 12+ млн | https://moseparh.ru/ | https://moseparh.ru/cat/news/feed | RSS | high | verified |
-| R2 | Коломенская епархия | Коломенская | Коломна | — | https://mosmit.ru/ | нет | HTML | medium | verified |
-| R3 | Балашихинская епархия | Балашихинская | Балашиха | — | http://mosbalepar.ru/ | нет | HTML | medium | verified |
-| R4 | Одинцовская епархия | Одинцовская | Одинцово | — | http://odinceparh.ru/ | нет | HTML | medium | verified |
-| R5 | Подольская епархия | Подольская | Подольск | — | http://podolskeparh.ru/ | нет | HTML | medium | verified |
-| R6 | Сергиево-Посадская епархия | Сергиево-Посадская | Сергиев Посад | — | http://eparhsp.ru/ | нет | HTML | medium | verified |
-| R7 | Санкт-Петербургская епархия | Санкт-Петербургская | Санкт-Петербург | 5+ млн | https://mitropolia.spb.ru/news/av/ | нет | HTML | high | verified |
-| R8 | Выборгская епархия | Выборгская | Выборг | — | https://eparchiya-viborg.ru/ | нет | HTML | medium | verified |
-| R9 | Гатчинская епархия | Гатчинская | Гатчина | — | https://gatchinaeparhia.ru/ | нет | HTML | medium | verified |
-| R10 | Тихвинская епархия | Тихвинская | Тихвин | — | https://www.tikhvin-eparhia.ru/ | нет | HTML | medium | verified |
-| R11 | Нижегородская епархия | Нижегородская | Нижний Новгород | 1.2+ млн | https://nne.ru/ | нет | HTML | high | verified |
-| R12 | Ростовская епархия | Ростовская | Ростов-на-Дону | 1.1+ млн | https://rostoveparhia.ru/ | нет | HTML | high | verified |
-| R13 | Екатеринбургская епархия | Екатеринбургская | Екатеринбург | 1.5+ млн | https://ekaterinburg-eparhia.ru/ | нет | HTML | high | verified |
-| R14 | Казанская епархия | Казанская | Казань | 1.2+ млн | https://tatmitropolia.ru/newses/kaznews/ | нет | HTML | high | verified |
-| R15 | Самарская епархия | Самарская | Самара | 1.1+ млн | https://samepar.ru/ | нет | HTML | high | verified |
-| R16 | Челябинская епархия | Челябинская | Челябинск | 1.1+ млн | https://mitropolia74.ru/ | нет | HTML | high | verified |
-| R17 | Омская епархия | Омская | Омск | 1.1+ млн | https://omsk-eparhiya.ru/ | нет | HTML | high | verified |
-| R18 | Новосибирская епархия | Новосибирская | Новосибирск | 1.6+ млн | https://www.nskmi.ru/ | нет | HTML | high | verified |
-| R19 | Красноярская епархия | Красноярская | Красноярск | 1+ млн | https://kerpc.ru/ | нет | HTML | high | verified |
-| R20 | Иркутская епархия | Иркутская | Иркутск | 1+ млн | https://iemp.cerkov.ru/ | нет | HTML | high | verified |
+| R2 | Коломенская епархия | Коломенская | Коломна | — | https://mosmit.ru/ | https://mosmit.ru/news/rss/ | RSS | medium | verified |
+| R3 | Балашихинская епархия | Балашихинская | Балашиха | — | https://balep.ru | https://balep.ru/news/rss/ | RSS | medium | verified |
+| R4 | Одинцовская епархия | Одинцовская | Одинцово | — | https://odinceparh.ru | https://odinceparh.ru/rss | RSS | medium | verified |
+| R5 | Подольская епархия | Подольская | Подольск | — | https://podolskeparh.ru/ | https://podolskeparh.ru/feed/ | RSS | medium | verified |
+| R6 | Сергиево-Посадская епархия | Сергиево-Посадская | Сергиев Посад | — | https://eparhsp.ru/ | https://eparhsp.ru/feed/ | RSS | medium | verified |
+
+| R7 | Санкт-Петербургская епархия | Санкт-Петербургская | Санкт-Петербург | 5+ млн | https://mitropolia.spb.ru/news/av/ | https://aquaviva.ru/news_rss.php | RSS | high | verified |
+| R8 | Выборгская епархия | Выборгская | Выборг | — | https://eparchiya-viborg.ru/ | https://eparchiya-viborg.ru/feed | RSS | medium | verified |
+| R9 | Гатчинская епархия | Гатчинская | Гатчина | — | https://gatchinaeparhia.ru/ | https://gatchinaeparhia.ru/feed/ | RSS | medium | verified |
+| R10 | Тихвинская епархия | Тихвинская | Тихвин | — | https://www.tikhvin-eparhia.ru/ | https://www.tikhvin-eparhia.ru/novosti?format=feed&type=rss | RSS | medium | verified |
+| R11 | Нижегородская епархия | Нижегородская | Нижний Новгород | 1.2+ млн | https://nne.ru/ | https://nne.ru/news/feed/ | RSS | high | verified |
+| R12 | Ростовская епархия | Ростовская | Ростов-на-Дону | 1.1+ млн | https://rostoveparhia.ru/ | https://rostoveparhia.ru/feed/ | RSS | high | verified |
+| R13 | Екатеринбургская епархия | Екатеринбургская | Екатеринбург | 1.5+ млн | https://ekaterinburg-eparhia.ru/ | https://ekaterinburg-eparhia.ru/feed | RSS | high | verified |
+| R14 | Казанская епархия | Казанская | Казань | 1.2+ млн | https://tatmitropolia.ru/newses/kaznews/ | https://tatmitropolia.ru/rss.asp (1) | RSS | high | verified |
+| R15 | Самарская епархия | Самарская | Самара | 1.1+ млн | https://samepar.ru/ | https://samepar.ru/novosti/ | RSS | high | verified |
+| R16 | Челябинская епархия | Челябинская | Челябинск | 1.1+ млн | https://mitropolia74.ru/ | https://fetchrss.com/feed/1wwkViGyCE0R1wwkUY2Iq2eh.rss (0) | RSS | low | verified |
+| R17 | Омская епархия | Омская | Омск | 1.1+ млн | https://omsk-eparhiya.ru/ | https://omsk-eparhiya.ru/feed | RSS | high | verified |
+| R18 | Новосибирская епархия | Новосибирская | Новосибирск | 1.6+ млн | https://www.nskmi.ru/ | https://fetchrss.com/feed/1wwkViGyCE0R1wx2aM9yn37b.rss (2) | RSS | high | verified |
+| R19 | Красноярская епархия | Красноярская | Красноярск | 1+ млн | https://kerpc.ru/ | https://kerpc.ru/feed | RSS | high | verified |
+| R20 | Иркутская епархия | Иркутская | Иркутск | 1+ млн | http://www.iemp.ru | https://fetchrss.com/feed/1wwkViGyCE0R1wx2ps3fk071.rss (0) | RSS | low | verified |
+
+Comments:
+(0) RSS generated from Telegram channel via https://fetchrss.com
+(1) filter RSS by field `<category>Новости Казанской епархии</category>`
+(2) RSS generated via https://fetchrss.com
+
 
 ### Дополнительные епархии
 
