@@ -1,0 +1,166 @@
+{
+  "sources": [
+    {
+      "id": "R1",
+      "name": "Московская городская епархия",
+      "url": "https://moseparh.ru/cat/news/feed",
+      "priority": "high"
+    },
+    {
+      "id": "R2",
+      "name": "Коломенская епархия",
+      "url": "https://mosmit.ru/news/rss/",
+      "priority": "medium"
+    },
+    {
+      "id": "R3",
+      "name": "Балашихинская епархия",
+      "url": "https://balep.ru/news/rss/",
+      "priority": "medium"
+    },
+    {
+      "id": "R4",
+      "name": "Одинцовская епархия",
+      "url": "https://odinceparh.ru/rss",
+      "priority": "medium"
+    },
+    {
+      "id": "R5",
+      "name": "Подольская епархия",
+      "url": "https://podolskeparh.ru/feed/",
+      "priority": "medium"
+    },
+    {
+      "id": "R6",
+      "name": "Сергиево-Посадская епархия",
+      "url": "https://eparhsp.ru/feed/",
+      "priority": "medium"
+    },
+    {
+      "id": "R8",
+      "name": "Выборгская епархия",
+      "url": "https://eparchiya-viborg.ru/feed",
+      "priority": "medium"
+    },
+    {
+      "id": "R9",
+      "name": "Гатчинская епархия",
+      "url": "https://gatchinaeparhia.ru/feed/",
+      "priority": "medium"
+    },
+    {
+      "id": "R10",
+      "name": "Тихвинская епархия",
+      "url": "https://www.tikhvin-eparhia.ru/novosti?format=feed&type=rss",
+      "priority": "medium"
+    },
+    {
+      "id": "R11",
+      "name": "Нижегородская епархия",
+      "url": "https://nne.ru/news/feed/",
+      "priority": "high"
+    },
+    {
+      "id": "R12",
+      "name": "Ростовская епархия",
+      "url": "https://rostoveparhia.ru/feed/",
+      "priority": "high"
+    },
+    {
+      "id": "R13",
+      "name": "Екатеринбургская епархия",
+      "url": "https://ekaterinburg-eparhia.ru/feed",
+      "priority": "high"
+    },
+    {
+      "id": "R14",
+      "name": "Казанская епархия",
+      "url": "https://tatmitropolia.ru/rss.asp",
+      "priority": "high"
+    },
+    {
+      "id": "R15",
+      "name": "Самарская епархия",
+      "url": "https://samepar.ru/novosti/",
+      "priority": "high"
+    },
+    {
+      "id": "R16",
+      "name": "Челябинская епархия",
+      "url": "https://fetchrss.com/feed/1wwkViGyCE0R1wwkUY2Iq2eh.rss",
+      "priority": "low"
+    },
+    {
+      "id": "R17",
+      "name": "Омская епархия",
+      "url": "https://omsk-eparhiya.ru/feed",
+      "priority": "high"
+    },
+    {
+      "id": "R18",
+      "name": "Новосибирская епархия",
+      "url": "https://fetchrss.com/feed/1wwkViGyCE0R1wx2aM9yn37b.rss",
+      "priority": "high"
+    },
+    {
+      "id": "R19",
+      "name": "Красноярская епархия",
+      "url": "https://kerpc.ru/feed",
+      "priority": "high"
+    },
+    {
+      "id": "R20",
+      "name": "Иркутская епархия",
+      "url": "https://fetchrss.com/feed/1wwkViGyCE0R1wx2ps3fk071.rss",
+      "priority": "low"
+    },
+    {
+      "id": "R21",
+      "name": "Нижнетагильская епархия",
+      "url": "https://tagileparhiya.ru/feed/",
+      "priority": "medium"
+    },
+    {
+      "id": "R22",
+      "name": "Пермская епархия",
+      "url": "https://www.pravperm.ru/feed/",
+      "priority": "medium"
+    },
+    {
+      "id": "R23",
+      "name": "Енисейская епархия",
+      "url": "https://xn--80aanabpeej0a2anfc0etig.xn--p1ai/feed/",
+      "priority": "medium"
+    },
+    {
+      "id": "R24",
+      "name": "Владикавказская епархия",
+      "url": "https://blagos.ru/rss.xml",
+      "priority": "medium"
+    },
+    {
+      "id": "R25",
+      "name": "Патриархия.ru",
+      "url": "https://api.patriarchia.ru/v1/rss/news",
+      "priority": "high"
+    },
+    {
+      "id": "R26",
+      "name": "Православие.ру",
+      "url": "https://pravoslavie.ru/xml/full.xml",
+      "priority": "high"
+    },
+    {
+      "id": "UA3",
+      "name": "Союз православных журналистов (СПЖ)",
+      "url": "https://spzh.eu/rss",
+      "priority": "high"
+    },
+    {
+      "id": "MD1",
+      "name": "Митрополия Молдовы",
+      "url": "https://mitropolia.md/ru/feed/",
+      "priority": "high"
+    }
+  ]
+}
