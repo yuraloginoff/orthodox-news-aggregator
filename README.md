@@ -1,18 +1,36 @@
-# Orthodox News Aggregator
+# Orthodox News Aggregator (Глас)
 
-Агрегатор православных новостей с единой лентой и фильтрами по юрисдикциям и странам (РПЦ, Украина, Молдавия, Армения, Греция, Афон и др.).
+RSS aggregator for Orthodox news sources.
 
-Цель проекта — дать возможность быстро читать новости из множества церковных источников в одном месте, без необходимости обходить десятки сайтов.
+## Setup
 
-## Документация
+1. Install dependencies:
+```bash
+npm install
+```
 
-- [MVP_SPEC.md](./MVP_SPEC.md) — спецификация MVP (продукт, архитектура, справочник юрисдикций и стран).
-- [SOURCES_MVP.md](./SOURCES_MVP.md) — список источников для MVP (URL, тип RSS/HTML, приоритет).
+2. Create directories:
+```bash
+mkdir -p data logs
+```
 
-## Следующие шаги
+3. Run the parser:
+```bash
+npm start
+```
 
-1. Утвердить список первых 40–50 источников.
-2. Реализовать парсер (`fetch_news.py`) и схему БД.
-3. Сделать базовый Flask API и простую админку.
-4. Настроить GitHub Actions для регулярного сбора новостей.
-5. Запустить закрытый тест на 10–20 пользователях.
+## Configuration
+
+Edit `config/sources.json` to add or remove RSS sources.
+
+## Database
+
+News are stored in `data/news.db` (SQLite).
+
+## Logs
+
+Error logs are written to `logs/error.log`.
+
+## License
+
+MIT

@@ -1,0 +1,22 @@
+{
+  "name": "orthodox-news-aggregator",
+  "version": "1.0.0",
+  "description": "RSS aggregator for Orthodox news sources",
+  "main": "src/parser.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/parser.js",
+    "dev": "node --watch src/parser.js"
+  },
+  "keywords": ["rss", "parser", "orthodox", "news"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "fast-xml-parser": "^4.3.2",
+    "better-sqlite3": "^9.4.3",
+    "node-cron": "^3.0.3",
+    "winston": "^3.11.0",
+    "sanitize-html": "^2.12.1"
+  }
+}
