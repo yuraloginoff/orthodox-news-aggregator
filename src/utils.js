@@ -15,8 +15,8 @@ export const logger = winston.createLogger({
   ),
   transports: [
     new winston.transports.File({ 
-      filename: join(__dirname, '..', 'logs', 'error.log'), 
-      level: 'error' 
+      filename: join(__dirname, '..', 'logs', 'parser.log'),
+      level: 'error'
     }),
     new winston.transports.Console({
       format: winston.format.combine(
@@ -54,4 +54,11 @@ export function parseDate(dateStr) {
 
 export function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export function removeEmoji(text) {
+  if (!text) return '';
+  
+  const emojiRegex = /[\p{Emoji_Presentation}\p{Emoji}\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu;
+  return text.replace(emojiRegex, '').trim();
 }

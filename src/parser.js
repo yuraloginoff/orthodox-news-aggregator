@@ -4,9 +4,10 @@ import cron from 'node-cron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
-import { initDb, insertNews, getNewsCount, closeDb } from './db.js';
-import { logger, cleanHtml, parseDate, sleep } from './utils.js';
+import { initDb, insertNews, getNewsCount, getInsertedCount, closeDb } from './db.js';
+import { logger, cleanHtml, parseDate, sleep, removeEmoji } from './utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -18,13 +19,32 @@ function loadConfig() {
   return JSON.parse(configData);
 }
 
-async function fetchRss(url) {
-  const response = await fetch(url, {
+function getProxyAgent(source) {
+  if (!source.proxy) return null;
+  
+  const proxyUrl = process.env.RSS_PROXY_URL;
+  if (!proxyUrl) {
+    logger.warn(`Proxy requested for ${source.name} but RSS_PROXY_URL not set`);
+    return null;
+  }
+  
+  logger.info(`Using proxy for ${source.name}`);
+  return new HttpsProxyAgent(proxyUrl);
+}
+
+async function fetchRss(url, agent) {
+  const fetchOptions = {
     timeout: 10000,
     headers: {
       'User-Agent': 'Mozilla/5.0 (compatible; OrthodoxNewsAggregator/1.0)'
     }
-  });
+  };
+  
+  if (agent) {
+    fetchOptions.agent = agent;
+  }
+  
+  const response = await fetch(url, fetchOptions);
   
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -54,8 +74,51 @@ function parseRss(xml) {
   return items;
 }
 
-function extractNews(items, sourceId) {
+function filterByCategory(items, categories) {
+  if (!categories || categories.length === 0) return items;
+  
+  return items.filter(item => {
+    const itemCategories = item.category || [];
+    const cats = Array.isArray(itemCategories) ? itemCategories : [itemCategories];
+    
+    return cats.some(cat => {
+      const catValue = typeof cat === 'string' ? cat : cat['#text'];
+      return categories.includes(catValue);
+    });
+  });
+}
+
+function parseTelegramNews(items, sourceId) {
   return items
+    .map(item => {
+      const description = item.description || item['description'] || item['content']?.['#text'] || '';
+      const cleaned = removeEmoji(description);
+      
+      const paragraphs = cleaned.split(/\n\n+/).filter(p => p.trim().length > 0);
+      
+      if (paragraphs.length === 0) return null;
+      
+      const title = paragraphs[0].trim();
+      const truncatedTitle = title.length > 240 ? title.substring(0, 240) : title;
+      
+      const link = item.link || item['link'] || item['@_rdf:about'] || '';
+      const pubDate = item.pubDate || item['pubDate'] || item.published || item['published'];
+      
+      return {
+        source_id: sourceId,
+        title: truncatedTitle,
+        link: typeof link === 'string' ? link.trim() : String(link),
+        published_at: parseDate(pubDate),
+        content: null
+      };
+    })
+    .filter(item => item !== null && item.title && item.link);
+}
+
+function extractNews(items, sourceId, categories) {
+  const filteredItems = filterByCategory(items, categories);
+  
+  return filteredItems
     .map(item => {
       const title = item.title || item['title'] || '';
       const link = item.link || item['link'] || item['@_rdf:about'] || '';
@@ -78,9 +141,17 @@ async function parseSource(source) {
   try {
     logger.info(`Fetching ${source.name} (${source.id})`);
     
-    const xml = await fetchRss(source.url);
+    const agent = getProxyAgent(source);
+    const xml = await fetchRss(source.url, agent);
     const items = parseRss(xml);
-    const news = extractNews(items, source.id);
+    
+    let news;
+    if (source.parser === 'telegram') {
+      news = parseTelegramNews(items, source.id);
+    } else {
+      const categories = source.filters?.categories;
+      news = extractNews(items, source.id, categories);
+    }
     
     logger.info(`Parsed ${news.length} items from ${source.name}`);
     
@@ -100,21 +171,23 @@ async function runParser() {
   const initialCount = getNewsCount(db);
   logger.info(`Initial news count: ${initialCount}`);
   
-  let totalNew = 0;
+  let totalParsed = 0;
   
   for (const source of config.sources) {
     const news = await parseSource(source);
     
     if (news.length > 0) {
       insertNews(db, news);
-      totalNew += news.length;
+      totalParsed += news.length;
     }
     
     await sleep(1000);
   }
   
+  const insertedCount = getInsertedCount(db, initialCount);
   const finalCount = getNewsCount(db);
-  logger.info(`Parser run complete. New items: ${totalNew}, Total in DB: ${finalCount}`);
+  
+  logger.info(`Parser run complete. Parsed: ${totalParsed}, Inserted (new): ${insertedCount}, Total in DB: ${finalCount}`);
   
   closeDb(db);
 }

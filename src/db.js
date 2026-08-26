@@ -18,7 +18,7 @@ export function initDb() {
       link TEXT UNIQUE NOT NULL,
       published_at DATETIME,
       content TEXT,
-      fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      fetched_at DATETIME DEFAULT (datetime('now'))
     )
   `);
   
@@ -57,6 +57,11 @@ export function insertNews(db, news) {
 export function getNewsCount(db) {
   const result = db.prepare('SELECT COUNT(*) as count FROM news').get();
   return result.count;
+}
+
+export function getInsertedCount(db, initialCount) {
+  const currentCount = getNewsCount(db);
+  return currentCount - initialCount;
 }
 
 export function closeDb(db) {
