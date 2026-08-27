@@ -93,7 +93,8 @@
       "url": "https://fetchrss.com/feed/1wwkViGyCE0R1wwkUY2Iq2eh.rss",
       "priority": "low",
       "parser": "telegram",
-      "proxy": true
+      "proxy": true,
+      "enabled": false
     },
     {
       "id": "R17",
@@ -119,7 +120,8 @@
       "url": "https://fetchrss.com/feed/1wwkViGyCE0R1wx2ps3fk071.rss",
       "priority": "low",
       "parser": "telegram",
-      "proxy": true
+      "proxy": true,
+      "enabled": false
     },
     {
       "id": "R21",
@@ -171,7 +173,8 @@
       "id": "MD1",
       "name": "Митрополия Молдовы",
       "url": "https://mitropolia.md/ru/feed/",
-      "priority": "high"
+      "priority": "high",
+      "proxy": true
     }
   ]
 }
