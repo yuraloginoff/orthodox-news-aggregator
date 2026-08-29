@@ -1,7 +1,7 @@
-const https = require('https');
-const http = require('http');
-const { URL } = require('url');
-const xml2js = require('xml2js');
+import https from 'https';
+import http from 'http';
+import { URL } from 'url';
+import xml2js from 'xml2js';
 
 const parser = new xml2js.Parser();
 
@@ -173,7 +173,7 @@ async function fetchAllSources(sources) {
   return allItems;
 }
 
-module.exports = {
+export {
   fetchItem,
   fetchAllSources,
   extractItems,
