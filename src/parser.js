@@ -3,14 +3,15 @@ import http from 'http';
 import { URL } from 'url';
 import xml2js from 'xml2js';
 
-const parser = new xml2js.Parser();
+const parser = new xml2js.Parser({ explicitCharkey: false, trim: true });
 
 /**
- * Fetches RSS feed from a source
+ * Fetches RSS feed from a source with redirect support
  * @param {Object} source - Source configuration
+ * @param {number} maxRedirects - Maximum number of redirects to follow
  * @returns {Promise<Array>} Array of parsed items
  */
-async function fetchItem(source) {
+async function fetchItem(source, maxRedirects = 5) {
   // Skip disabled sources
   if (source.enabled === false) {
     console.log(`Skipping ${source.id} (${source.name}): disabled`);
@@ -27,7 +28,8 @@ async function fetchItem(source) {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; OrthodoxNewsAggregator/1.0)',
         'Accept': 'application/rss+xml, application/xml, text/xml'
-      }
+      },
+      timeout: 30000 // 30 seconds
     };
 
     // Use proxy if configured
@@ -37,6 +39,21 @@ async function fetchItem(source) {
     }
 
     const request = lib.get(options, (response) => {
+      // Handle redirects (301, 302, 307, 308)
+      if ([301, 302, 307, 308].includes(response.statusCode)) {
+        const redirectUrl = response.headers.location;
+        if (redirectUrl && maxRedirects > 0) {
+          console.log(`Redirecting ${source.id} to ${redirectUrl}`);
+          fetchItem({ ...source, url: redirectUrl }, maxRedirects - 1)
+            .then(resolve)
+            .catch(reject);
+          return;
+        } else {
+          reject(new Error(`Too many redirects for ${source.id}`));
+          return;
+        }
+      }
+      
       let data = '';
       
       if (response.statusCode !== 200) {
@@ -64,7 +81,7 @@ async function fetchItem(source) {
     });
 
     // Set timeout
-    request.setTimeout(10000, () => {
+    request.setTimeout(30000, () => {
       request.destroy();
       reject(new Error(`Timeout for ${source.id}`));
     });
