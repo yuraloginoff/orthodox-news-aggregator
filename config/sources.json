@@ -84,7 +84,7 @@
     {
       "id": "R15",
       "name": "Самарская епархия",
-      "url": "https://samepar.ru/novosti/rss/",
+      "url": "https://samepar.ru/novosti/",
       "priority": "high"
     },
     {
@@ -99,7 +99,7 @@
     {
       "id": "R17",
       "name": "Омская епархия",
-      "url": "https://omsk-eparhiya.ru/news/feed",
+      "url": "https://omsk-eparhiya.ru/feed",
       "priority": "high"
     },
     {
@@ -144,7 +144,7 @@
     {
       "id": "R24",
       "name": "Владикавказская епархия",
-      "url": "https://blagos.ru/news/rss.xml",
+      "url": "https://blagos.ru/rss.xml",
       "priority": "medium"
     },
     {
