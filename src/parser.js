@@ -6,6 +6,29 @@ import xml2js from 'xml2js';
 const parser = new xml2js.Parser({ explicitCharkey: false, trim: true });
 
 /**
+ * Sanitizes raw XML by escaping unescaped ampersands
+ * @param {string} xml - Raw XML string
+ * @returns {string} Sanitized XML
+ */
+function sanitizeXml(xml) {
+  return xml.replace(/&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)/g, '&amp;');
+}
+
+/**
+ * Safely parses a date string, falling back to current date if invalid
+ * @param {string} dateStr - Date string to parse
+ * @returns {string} ISO date string
+ */
+function safeParseDate(dateStr) {
+  if (!dateStr) return new Date().toISOString();
+  const parsed = new Date(dateStr);
+  if (isNaN(parsed.getTime())) {
+    return new Date().toISOString();
+  }
+  return parsed.toISOString();
+}
+
+/**
  * Fetches RSS feed from a source with redirect support
  * @param {Object} source - Source configuration
  * @param {number} maxRedirects - Maximum number of redirects to follow
@@ -67,7 +90,8 @@ async function fetchItem(source, maxRedirects = 5) {
 
       response.on('end', async () => {
         try {
-          const result = await parser.parseStringPromise(data);
+          const sanitized = sanitizeXml(data);
+          const result = await parser.parseStringPromise(sanitized);
           const items = extractItems(result, source);
           resolve(items);
         } catch (error) {
@@ -140,7 +164,7 @@ function normalizeItem(item, source) {
     sourceName: source.name,
     title: title || '',
     link: link || '',
-    pubDate: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
+    pubDate: safeParseDate(pubDate),
     description: description || '',
     categories: category,
     priority: source.priority || 'medium'
