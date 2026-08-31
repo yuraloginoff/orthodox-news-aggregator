@@ -85,7 +85,8 @@
       "id": "R15",
       "name": "Самарская епархия",
       "url": "https://samepar.ru/novosti/",
-      "priority": "high"
+      "priority": "high",
+      "enabled": false
     },
     {
       "id": "R16",
