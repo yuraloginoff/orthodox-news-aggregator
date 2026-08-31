@@ -66,8 +66,9 @@ async function fetchItem(source, maxRedirects = 5) {
       if ([301, 302, 307, 308].includes(response.statusCode)) {
         const redirectUrl = response.headers.location;
         if (redirectUrl && maxRedirects > 0) {
-          console.log(`Redirecting ${source.id} to ${redirectUrl}`);
-          fetchItem({ ...source, url: redirectUrl }, maxRedirects - 1)
+          const resolvedUrl = new URL(redirectUrl, source.url).toString();
+          console.log(`Redirecting ${source.id} to ${resolvedUrl}`);
+          fetchItem({ ...source, url: resolvedUrl }, maxRedirects - 1)
             .then(resolve)
             .catch(reject);
           return;
