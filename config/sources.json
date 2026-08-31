@@ -69,7 +69,7 @@
     {
       "id": "R13",
       "name": "Екатеринбургская епархия",
-      "url": "https://ekaterinburg-eparhia.ru/feed",
+      "url": "https://ekaterinburg-eparhia.ru/news/feed",
       "priority": "high"
     },
     {
@@ -84,7 +84,7 @@
     {
       "id": "R15",
       "name": "Самарская епархия",
-      "url": "https://samepar.ru/novosti/",
+      "url": "https://samepar.ru/novosti/rss/",
       "priority": "high"
     },
     {
@@ -99,7 +99,7 @@
     {
       "id": "R17",
       "name": "Омская епархия",
-      "url": "https://omsk-eparhiya.ru/feed",
+      "url": "https://omsk-eparhiya.ru/news/feed",
       "priority": "high"
     },
     {
@@ -144,7 +144,7 @@
     {
       "id": "R24",
       "name": "Владикавказская епархия",
-      "url": "https://blagos.ru/rss.xml",
+      "url": "https://blagos.ru/news/rss.xml",
       "priority": "medium"
     },
     {
