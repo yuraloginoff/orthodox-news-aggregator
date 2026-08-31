@@ -20,7 +20,7 @@
 | R12 | Ростовская епархия | Ростовская | Ростов-на-Дону | 1.1+ млн | https://rostoveparhia.ru/ | https://rostoveparhia.ru/feed/ | RSS | high | not verified |
 | R13 | Екатеринбургская епархия | Екатеринбургская | Екатеринбург | 1.5+ млн | https://ekaterinburg-eparhia.ru/ | https://ekaterinburg-eparhia.ru/feed | RSS | high | not verified |
 | R14 | Казанская епархия | Казанская | Казань | 1.2+ млн | https://tatmitropolia.ru/newses/kaznews/ | https://tatmitropolia.ru/rss.asp (1) | RSS | high | not verified |
-| R15 | Самарская епархия | Самарская | Самара | 1.1+ млн | https://samepar.ru/ | https://samepar.ru/novosti/ | RSS | high | not verified |
+| R15 | Самарская епархия | Самарская | Самара | 1.1+ млн | https://samepar.ru/ | https://samepar.ru/novosti/ | RSS | high | deferred |
 | R16 | Челябинская епархия | Челябинская | Челябинск | 1.1+ млн | https://mitropolia74.ru/ | https://fetchrss.com/feed/1wwkViGyCE0R1wwkUY2Iq2eh.rss (0) | RSS | low | deferred |
 | R17 | Омская епархия | Омская | Омск | 1.1+ млн | https://omsk-eparhiya.ru/ | https://omsk-eparhiya.ru/feed | RSS | high | not verified |
 | R18 | Новосибирская епархия | Новосибирская | Новосибирск | 1.6+ млн | https://www.nskmi.ru/ | https://fetchrss.com/feed/1wwkViGyCE0R1wx2aM9yn37b.rss (2) | RSS | high | not verified |
@@ -151,6 +151,14 @@ TBD (To Be Discussed) - источник возможно будет добав�
 ---
 
 ## Отложено на будущее
+
+### R15 — Самарская епархия
+- **URL:** https://samepar.ru/novosti/
+- **Причина откладывания:** Структурно битый XML на источнике (`Unexpected close tag`), не парсится даже после санитизации амперсандов
+- **Необходимые доработки:**
+  - Более теримый XML-парсер или HTML-фолбэк
+  - Либо ожидать исправления на стороне источника
+- **Приоритет:** Высокий (была high, но фид сломан на стороне источника)
 
 ### R16 — Челябинская епархия (Telegram)
 - **URL:** FetchRSS Telegram-канал
