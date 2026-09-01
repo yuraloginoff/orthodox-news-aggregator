@@ -1,69 +1,53 @@
 import Database from 'better-sqlite3';
+import path from 'path';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const dbPath = path.join(__dirname, '..', 'news.db');
 
-const DB_PATH = join(__dirname, '..', 'data', 'news.db');
+const db = new Database(dbPath);
 
-export function initDb() {
-  const db = new Database(DB_PATH);
-  
+function initDb() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS news (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       source_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      link TEXT UNIQUE NOT NULL,
-      published_at DATETIME,
+      title TEXT,
+      link TEXT UNIQUE,
+      published_at TEXT,
       content TEXT,
-      fetched_at DATETIME DEFAULT (datetime('now'))
+      fetched_at TEXT
     )
   `);
-  
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_source_id ON news(source_id)
-  `);
-  
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_published_at ON news(published_at)
-  `);
-  
-  return db;
 }
 
-export function insertNews(db, news) {
+function insertNews(item) {
   const stmt = db.prepare(`
-    INSERT OR IGNORE INTO news (source_id, title, link, published_at, content)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO news (source_id, title, link, published_at, content, fetched_at)
+    VALUES (@sourceId, @title, @link, @pubDate, @description, @fetchedAt)
   `);
-  
-  const insertMany = db.transaction((newsItems) => {
-    for (const item of newsItems) {
-      stmt.run(
-        item.source_id,
-        item.title,
-        item.link,
-        item.published_at,
-        item.content
-      );
-    }
+  const result = stmt.run({
+    sourceId: item.sourceId,
+    title: item.title,
+    link: item.link,
+    pubDate: item.pubDate,
+    description: item.description,
+    fetchedAt: new Date().toISOString()
   });
-  
-  insertMany(news);
+  return result.changes > 0;
 }
 
-export function getNewsCount(db) {
-  const result = db.prepare('SELECT COUNT(*) as count FROM news').get();
-  return result.count;
+function getNewsCount() {
+  const row = db.prepare('SELECT COUNT(*) as count FROM news').get();
+  return row.count;
 }
 
-export function getInsertedCount(db, initialCount) {
-  const currentCount = getNewsCount(db);
-  return currentCount - initialCount;
+function getAllNews() {
+  return db.prepare('SELECT * FROM news ORDER BY published_at DESC').all();
 }
 
-export function closeDb(db) {
+function closeDb() {
   db.close();
 }
+
+export { initDb, insertNews, getNewsCount, getAllNews, closeDb };
