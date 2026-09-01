@@ -2,11 +2,11 @@
   "name": "orthodox-news-aggregator",
   "version": "1.0.0",
   "description": "RSS aggregator for Orthodox news sources",
-  "main": "src/parser.js",
+  "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node src/parser.js",
-    "dev": "node --watch src/parser.js"
+    "start": "node index.js",
+    "dev": "node --watch index.js"
   },
   "keywords": [
     "rss",
