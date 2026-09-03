@@ -12,7 +12,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { db } from './db.js';
 import { sendNewsToTelegram } from './telegram.js';
-import { extractImageUrl, htmlToPlainText, truncateText } from './contentUtils.js';
+import { extractImageUrl, htmlToPlainText, truncateText, decodeHtmlEntities } from './contentUtils.js';
 import logger from './logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,7 +21,6 @@ const PORT = process.env.ADMIN_PORT || 3001;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 // --- Миграция БД для админки (идемпотентна, безопасно выполнять при каждом старте) ---
-// Реальные колонки таблицы news: id, source_id, title, link, published_at, content, fetched_at
 const newsColumns = db.prepare("PRAGMA table_info(news)").all().map((c) => c.name);
 const migrations = [
   ['sent_to_telegram', 'ALTER TABLE news ADD COLUMN sent_to_telegram INTEGER DEFAULT 0'],
@@ -37,7 +36,7 @@ for (const [column, sql] of migrations) {
   }
 }
 
-// --- Карта source_id -> человекочитаемое название источника (для подписи "Источник: ...") ---
+// --- Карта source_id -> человекочитаемое название источника ---
 const sourcesConfigPath = path.join(__dirname, '..', 'config', 'sources.json');
 let sourceNameById = {};
 try {
@@ -58,7 +57,6 @@ function getSourceName(sourceId) {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// --- Простая Basic Auth защита (достаточно для MVP одного пользователя) ---
 app.use((req, res, next) => {
   if (!ADMIN_PASSWORD) return next();
 
@@ -80,13 +78,9 @@ app.use((req, res, next) => {
 });
 
 /**
- * Дополняет запись новости производными полями (наружу отдаём camelCase для фронтенда,
- * внутри БД поля хранятся как source_id / published_at / fetched_at).
- *
- * ВАЖНО: поле content — это сырой <description> из RSS без гарантии наличия <img>.
- * Картинка есть только если конкретный источник кладёт HTML с img внутрь description.
- * Для источников без картинки в разметке extractImageUrl() вернёт null — это ожидаемо,
- * не баг, и в таких случаях в админке будет предложено добавить картинку вручную.
+ * Дополняет запись новости производными полями.
+ * title и preview_text прогоняются через decodeHtmlEntities, так как RSS часто
+ * содержит &nbsp;/&laquo;/&raquo; и т.п. после однократной декодировки xml2js.
  */
 function enrichNews(news) {
   const autoText = truncateText(htmlToPlainText(news.content));
@@ -95,7 +89,7 @@ function enrichNews(news) {
   return {
     id: news.id,
     sourceId: news.source_id,
-    title: news.title,
+    title: decodeHtmlEntities(news.title),
     link: news.link,
     publishedAt: news.published_at,
     fetchedAt: news.fetched_at,
@@ -112,7 +106,6 @@ function enrichNews(news) {
   };
 }
 
-// --- API: список новостей с фильтрами и пагинацией ---
 app.get('/api/news', (req, res) => {
   const { source, status, page = 1, limit = 30 } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
@@ -150,7 +143,6 @@ app.get('/api/news', (req, res) => {
   res.json({ news: news.map(enrichNews), total, page: Number(page), limit: Number(limit) });
 });
 
-// --- API: список источников для фильтра ---
 app.get('/api/sources', (req, res) => {
   const sources = db
     .prepare('SELECT DISTINCT source_id FROM news ORDER BY source_id')
@@ -158,7 +150,6 @@ app.get('/api/sources', (req, res) => {
   res.json(sources.map((s) => s.source_id));
 });
 
-// --- API: сохранить правки (заголовок / текст превью / картинка) без отправки ---
 app.patch('/api/news/:id', (req, res) => {
   const { id } = req.params;
   const { title, text, imageUrl } = req.body;
@@ -187,7 +178,6 @@ app.patch('/api/news/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-// --- API: отправить новость в Telegram ---
 app.post('/api/news/:id/send', async (req, res) => {
   const { id } = req.params;
   const { title, text, imageUrl } = req.body;
@@ -227,7 +217,6 @@ app.post('/api/news/:id/send', async (req, res) => {
   res.json({ ok: true });
 });
 
-// --- API: скрыть/показать новость ---
 app.post('/api/news/:id/hide', (req, res) => {
   const { id } = req.params;
   db.prepare('UPDATE news SET hidden = 1 WHERE id = ?').run(id);
