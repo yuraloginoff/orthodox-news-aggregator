@@ -1,0 +1,185 @@
+/* public/admin.css */
+* { box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f4f4f2;
+  color: #222;
+  margin: 0;
+  padding: 0;
+}
+
+header {
+  background: #2c3e50;
+  color: #fff;
+  padding: 16px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+header h1 {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filters select, .filters button, footer button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.filters button, footer button {
+  background: #3498db;
+  color: #fff;
+  border: none;
+}
+
+main {
+  padding: 16px 24px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.news-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.news-card.sent {
+  opacity: 0.6;
+}
+
+.news-card .meta {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 10px;
+}
+
+.field-label {
+  display: block;
+  font-size: 11px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 10px 0 4px;
+}
+
+.news-card .title,
+.news-card .body-text,
+.image-url-input {
+  width: 100%;
+  border: 1px solid #ddd;
+  padding: 8px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.news-card .title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.news-card .title:focus,
+.news-card .body-text:focus,
+.image-url-input:focus {
+  border-color: #3498db;
+  outline: none;
+  background: #fafcff;
+}
+
+.image-preview {
+  margin-top: 8px;
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.image-preview img {
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 6px;
+  display: block;
+}
+
+.image-preview.empty-image {
+  color: #aaa;
+  font-size: 13px;
+  padding: 10px;
+  border: 1px dashed #ddd;
+  border-radius: 6px;
+  display: block;
+}
+
+.btn-remove-image {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(231, 76, 60, 0.9);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.news-card .actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.news-card .actions button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.btn-save { background: #34495e; color: #fff; }
+.btn-send { background: #27ae60; color: #fff; }
+.btn-hide { background: #e74c3c; color: #fff; }
+.btn-unhide { background: #f39c12; color: #fff; }
+.btn-link { background: none; color: #3498db; text-decoration: underline; padding: 6px 4px; }
+
+.loading, .empty {
+  text-align: center;
+  color: #888;
+  padding: 40px;
+}
+
+footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+}
+
+.status-badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+
+.status-badge.sent { background: #d4efdf; color: #196f3d; }
+.status-badge.unsent { background: #fdebd0; color: #af601a; }

@@ -1,0 +1,39 @@
+<!-- public/admin.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Глас — Админка</title>
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <header>
+    <h1>Глас — модерация новостей</h1>
+    <div class="filters">
+      <select id="sourceFilter">
+        <option value="">Все источники</option>
+      </select>
+      <select id="statusFilter">
+        <option value="unsent">Не отправленные</option>
+        <option value="sent">Отправленные</option>
+        <option value="hidden">Скрытые</option>
+        <option value="">Все</option>
+      </select>
+      <button id="refreshBtn">Обновить</button>
+    </div>
+  </header>
+
+  <main id="newsList">
+    <p class="loading">Загрузка...</p>
+  </main>
+
+  <footer>
+    <button id="prevPage">&larr; Назад</button>
+    <span id="pageInfo"></span>
+    <button id="nextPage">Вперёд &rarr;</button>
+  </footer>
+
+  <script src="admin.js"></script>
+</body>
+</html>
