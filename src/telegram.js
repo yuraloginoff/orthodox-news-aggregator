@@ -3,7 +3,7 @@
 // Использует уже установленный node-fetch, дополнительных зависимостей не требует.
 
 import fetch from 'node-fetch';
-import { logger } from './logger.js';
+import logger from './logger.js';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID;

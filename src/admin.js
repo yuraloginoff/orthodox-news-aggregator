@@ -1,7 +1,9 @@
-// ПРИМЕЧАНИЕ: этот файл ожидает, что src/db.js экспортирует объект better-sqlite3
-// именованным экспортом `export const db = new Database(...)` (или `export { db }`).
-// Если сейчас в db.js экспорт другой (например, default export или другое имя),
-// поправь строку `import { db } from './db.js';` ниже под фактический экспорт.
+// src/admin.js
+// Легкий Express-сервер для админки «Глас».
+// Позволяет просматривать спарсенные новости, редактировать заголовок, текст превью
+// и изображение перед отправкой, отправлять новость в Telegram-канал, скрывать нерелевантные.
+//
+// Использует именованный экспорт `db` из src/db.js и default export `logger` из src/logger.js.
 
 import 'dotenv/config';
 import express from 'express';
@@ -11,7 +13,7 @@ import { fileURLToPath } from 'url';
 import { db } from './db.js';
 import { sendNewsToTelegram } from './telegram.js';
 import { extractImageUrl, htmlToPlainText, truncateText } from './contentUtils.js';
-import { logger } from './logger.js';
+import logger from './logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -19,6 +21,7 @@ const PORT = process.env.ADMIN_PORT || 3001;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 // --- Миграция БД для админки (идемпотентна, безопасно выполнять при каждом старте) ---
+// Реальные колонки таблицы news: id, source_id, title, link, published_at, content, fetched_at
 const newsColumns = db.prepare("PRAGMA table_info(news)").all().map((c) => c.name);
 const migrations = [
   ['sent_to_telegram', 'ALTER TABLE news ADD COLUMN sent_to_telegram INTEGER DEFAULT 0'],
@@ -34,7 +37,7 @@ for (const [column, sql] of migrations) {
   }
 }
 
-// --- Карта sourceId -> человекочитаемое название источника (для подписи "Источник: ...") ---
+// --- Карта source_id -> человекочитаемое название источника (для подписи "Источник: ...") ---
 const sourcesConfigPath = path.join(__dirname, '..', 'config', 'sources.json');
 let sourceNameById = {};
 try {
@@ -57,7 +60,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // --- Простая Basic Auth защита (достаточно для MVP одного пользователя) ---
 app.use((req, res, next) => {
-  if (!ADMIN_PASSWORD) return next(); // если пароль не задан — доступ открыт (для локальной разработки)
+  if (!ADMIN_PASSWORD) return next();
 
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Basic ')) {
@@ -77,26 +80,35 @@ app.use((req, res, next) => {
 });
 
 /**
- * Дополняет запись новости производными полями:
- * - preview_text: если поле edited_text уже сохранено пользователем — используем его,
- *   иначе генерируем чистый текст из HTML content.
- * - image_url: если edited_image_url задан явно (включая пустую строку = "убрал картинку") — используем его,
- *   иначе извлекаем первую картинку из content автоматически.
- * - source_name: человекочитаемое название источника из config/sources.json.
+ * Дополняет запись новости производными полями (наружу отдаём camelCase для фронтенда,
+ * внутри БД поля хранятся как source_id / published_at / fetched_at).
+ *
+ * ВАЖНО: поле content — это сырой <description> из RSS без гарантии наличия <img>.
+ * Картинка есть только если конкретный источник кладёт HTML с img внутрь description.
+ * Для источников без картинки в разметке extractImageUrl() вернёт null — это ожидаемо,
+ * не баг, и в таких случаях в админке будет предложено добавить картинку вручную.
  */
 function enrichNews(news) {
   const autoText = truncateText(htmlToPlainText(news.content));
   const autoImage = extractImageUrl(news.content);
 
   return {
-    ...news,
-    preview_text: news.edited_text !== null && news.edited_text !== undefined
+    id: news.id,
+    sourceId: news.source_id,
+    title: news.title,
+    link: news.link,
+    publishedAt: news.published_at,
+    fetchedAt: news.fetched_at,
+    sent_to_telegram: news.sent_to_telegram,
+    sent_at: news.sent_at,
+    hidden: news.hidden,
+    preview_text: news.edited_text !== null && news.edited_text !== undefined && news.edited_text !== ''
       ? news.edited_text
       : autoText,
     image_url: news.edited_image_url !== null && news.edited_image_url !== undefined
       ? news.edited_image_url
       : autoImage,
-    source_name: getSourceName(news.sourceId),
+    source_name: getSourceName(news.source_id),
   };
 }
 
@@ -109,7 +121,7 @@ app.get('/api/news', (req, res) => {
   let params = {};
 
   if (source) {
-    where.push('sourceId = @source');
+    where.push('source_id = @source');
     params.source = source;
   }
   if (status === 'sent') {
@@ -127,7 +139,7 @@ app.get('/api/news', (req, res) => {
 
   const news = db
     .prepare(
-      `SELECT * FROM news ${whereClause} ORDER BY publishedAt DESC LIMIT @limit OFFSET @offset`
+      `SELECT * FROM news ${whereClause} ORDER BY published_at DESC LIMIT @limit OFFSET @offset`
     )
     .all({ ...params, limit: Number(limit), offset });
 
@@ -141,9 +153,9 @@ app.get('/api/news', (req, res) => {
 // --- API: список источников для фильтра ---
 app.get('/api/sources', (req, res) => {
   const sources = db
-    .prepare('SELECT DISTINCT sourceId FROM news ORDER BY sourceId')
+    .prepare('SELECT DISTINCT source_id FROM news ORDER BY source_id')
     .all();
-  res.json(sources.map((s) => s.sourceId));
+  res.json(sources.map((s) => s.source_id));
 });
 
 // --- API: сохранить правки (заголовок / текст превью / картинка) без отправки ---
