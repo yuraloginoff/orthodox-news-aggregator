@@ -2,13 +2,17 @@ import https from 'https';
 import http from 'http';
 import { URL } from 'url';
 import xml2js from 'xml2js';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 import logger from './logger.js';
 
+
 const parser = new xml2js.Parser({ explicitCharkey: false, trim: true });
+
 
 function sanitizeXml(xml) {
   return xml.replace(/&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)/g, '&amp;');
 }
+
 
 function safeParseDate(dateStr) {
   if (!dateStr) return new Date().toISOString();
@@ -19,16 +23,29 @@ function safeParseDate(dateStr) {
   return parsed.toISOString();
 }
 
-function resolveFetchUrl(source) {
-  if (source.proxy) {
-    const proxyBase = process.env.RSS_PROXY_URL;
-    if (proxyBase) {
-      return `${proxyBase}${encodeURIComponent(source.url)}`;
-    }
-    logger.warn(`Proxy requested for ${source.name} but RSS_PROXY_URL not set`);
+
+let cachedProxyAgent = null;
+let proxyAgentInitialized = false;
+
+function getProxyAgent() {
+  if (proxyAgentInitialized) return cachedProxyAgent;
+
+  proxyAgentInitialized = true;
+  const proxyUrl = process.env.RSS_PROXY_URL;
+
+  if (!proxyUrl) return null;
+
+  try {
+    cachedProxyAgent = new SocksProxyAgent(proxyUrl);
+    logger.info(`SOCKS proxy agent initialized: ${proxyUrl}`);
+  } catch (error) {
+    logger.error(`Failed to initialize SOCKS proxy agent: ${error.message}`);
+    cachedProxyAgent = null;
   }
-  return source.url;
+
+  return cachedProxyAgent;
 }
+
 
 async function fetchItem(source, maxRedirects = 5) {
   if (source.enabled === false) {
@@ -36,11 +53,22 @@ async function fetchItem(source, maxRedirects = 5) {
     return [];
   }
 
-  const fetchUrl = resolveFetchUrl(source);
+
+  const fetchUrl = source.url;
+  let proxyAgent = null;
+
+  if (source.proxy) {
+    proxyAgent = getProxyAgent();
+    if (!proxyAgent) {
+      logger.warn(`Proxy requested for ${source.name} but RSS_PROXY_URL not set`);
+    }
+  }
+
 
   return new Promise((resolve, reject) => {
     const urlObj = new URL(fetchUrl);
     const lib = urlObj.protocol === 'https:' ? https : http;
+
 
     const options = {
       hostname: urlObj.hostname,
@@ -49,8 +77,10 @@ async function fetchItem(source, maxRedirects = 5) {
         'User-Agent': 'Mozilla/5.0 (compatible; OrthodoxNewsAggregator/1.0)',
         'Accept': 'application/rss+xml, application/xml, text/xml'
       },
-      timeout: 30000
+      timeout: 30000,
+      ...(proxyAgent ? { agent: proxyAgent } : {})
     };
+
 
     const request = lib.get(options, (response) => {
       if ([301, 302, 307, 308].includes(response.statusCode)) {
@@ -58,7 +88,7 @@ async function fetchItem(source, maxRedirects = 5) {
         if (redirectUrl && maxRedirects > 0) {
           const resolvedUrl = new URL(redirectUrl, fetchUrl).toString();
           logger.info(`Redirecting ${source.id} to ${resolvedUrl}`);
-          fetchItem({ ...source, url: resolvedUrl, proxy: false }, maxRedirects - 1)
+          fetchItem({ ...source, url: resolvedUrl }, maxRedirects - 1)
             .then(resolve)
             .catch(reject);
           return;
@@ -68,16 +98,20 @@ async function fetchItem(source, maxRedirects = 5) {
         }
       }
 
+
       let data = '';
+
 
       if (response.statusCode !== 200) {
         reject(new Error(`Failed to fetch ${fetchUrl}: ${response.statusCode}`));
         return;
       }
 
+
       response.on('data', (chunk) => {
         data += chunk;
       });
+
 
       response.on('end', async () => {
         try {
@@ -91,9 +125,11 @@ async function fetchItem(source, maxRedirects = 5) {
       });
     });
 
+
     request.on('error', (error) => {
       reject(new Error(`Network error for ${source.id}: ${error.message}`));
     });
+
 
     request.setTimeout(30000, () => {
       request.destroy();
@@ -102,8 +138,10 @@ async function fetchItem(source, maxRedirects = 5) {
   });
 }
 
+
 function extractItems(parsed, source) {
   const items = [];
+
 
   if (parsed.rss && parsed.rss.channel && parsed.rss.channel[0].item) {
     for (const item of parsed.rss.channel[0].item) {
@@ -114,6 +152,7 @@ function extractItems(parsed, source) {
     }
   }
 
+
   if (parsed.feed && parsed.feed.entry) {
     for (const entry of parsed.feed.entry) {
       const normalized = normalizeItem(entry, source);
@@ -123,8 +162,10 @@ function extractItems(parsed, source) {
     }
   }
 
+
   return items;
 }
+
 
 function normalizeItem(item, source) {
   const title = item.title ? item.title[0] : '';
@@ -134,6 +175,7 @@ function normalizeItem(item, source) {
   const category = item.category ?
     (Array.isArray(item.category) ? item.category.map(c => c._ || c) : [item.category]) :
     [];
+
 
   return {
     sourceId: source.id,
@@ -147,23 +189,28 @@ function normalizeItem(item, source) {
   };
 }
 
+
 function shouldInclude(item, source) {
   if (!source.filters || !source.filters.categories) {
     return true;
   }
 
+
   const allowedCategories = source.filters.categories;
   return item.categories.some(cat => allowedCategories.includes(cat));
 }
 
+
 async function fetchAllSources(sources) {
   const allItems = [];
+
 
   for (const source of sources) {
     if (source.enabled === false) {
       logger.info(`Skipping ${source.id} (${source.name}): disabled`);
       continue;
     }
+
 
     try {
       logger.info(`Fetching ${source.name} (${source.id})`);
@@ -175,8 +222,10 @@ async function fetchAllSources(sources) {
     }
   }
 
+
   return allItems;
 }
+
 
 export {
   fetchItem,
