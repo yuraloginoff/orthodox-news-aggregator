@@ -79,8 +79,7 @@ app.use((req, res, next) => {
 
 /**
  * Дополняет запись новости производными полями.
- * title и preview_text прогоняются через decodeHtmlEntities, так как RSS часто
- * содержит &nbsp;/&laquo;/&raquo; и т.п. после однократной декодировки xml2js.
+ * title и preview_text прогоняются через decodeHtmlEntities.
  */
 function enrichNews(news) {
   const autoText = truncateText(htmlToPlainText(news.content));
@@ -143,11 +142,12 @@ app.get('/api/news', (req, res) => {
   res.json({ news: news.map(enrichNews), total, page: Number(page), limit: Number(limit) });
 });
 
+// --- API: список источников для фильтра (id + человекочитаемое имя) ---
 app.get('/api/sources', (req, res) => {
   const sources = db
     .prepare('SELECT DISTINCT source_id FROM news ORDER BY source_id')
     .all();
-  res.json(sources.map((s) => s.source_id));
+  res.json(sources.map((s) => ({ id: s.source_id, name: getSourceName(s.source_id) })));
 });
 
 app.patch('/api/news/:id', (req, res) => {

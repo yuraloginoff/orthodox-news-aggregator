@@ -13,7 +13,7 @@ async function loadSources() {
   const sources = await res.json();
   sourceFilterEl.innerHTML =
     '<option value="">Все источники</option>' +
-    sources.map((s) => `<option value="${s}">${s}</option>`).join('');
+    sources.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
 }
 
 async function loadNews() {
@@ -59,7 +59,7 @@ function renderNewsCard(news) {
 
   return `
     <div class="news-card ${news.sent_to_telegram ? 'sent' : ''}" data-id="${news.id}">
-      <div class="meta">${news.sourceId} · ${date} ${sentBadge}</div>
+      <div class="meta">${escapeHtml(news.source_name)} • ${news.sourceId} • ${date} ${sentBadge}</div>
 
       <label class="field-label">Заголовок</label>
       <textarea class="title" rows="2">${escapeHtml(news.title)}</textarea>
