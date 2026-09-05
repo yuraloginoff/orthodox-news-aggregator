@@ -1,12 +1,36 @@
 // src/telegram.js
 // Отправка новостей в Telegram-канал через Bot API.
-// Использует уже установленный node-fetch, дополнительных зависимостей не требует.
+// api.telegram.org заблокирован для российских IP, поэтому запросы идут через
+// тот же SOCKS5-прокси (RSS_PROXY_URL), что и парсер для UA3/MD1.
 
 import fetch from 'node-fetch';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 import logger from './logger.js';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHANNEL_ID = process.env.TELEGRAM_CHANNEL_ID;
+
+let cachedProxyAgent = null;
+let proxyAgentInitialized = false;
+
+function getProxyAgent() {
+  if (proxyAgentInitialized) return cachedProxyAgent;
+
+  proxyAgentInitialized = true;
+  const proxyUrl = process.env.RSS_PROXY_URL;
+
+  if (!proxyUrl) return null;
+
+  try {
+    cachedProxyAgent = new SocksProxyAgent(proxyUrl);
+    logger.info(`Telegram will use SOCKS proxy: ${proxyUrl}`);
+  } catch (error) {
+    logger.error(`Failed to initialize SOCKS proxy agent for Telegram: ${error.message}`);
+    cachedProxyAgent = null;
+  }
+
+  return cachedProxyAgent;
+}
 
 function assertConfigured() {
   if (!BOT_TOKEN || !CHANNEL_ID) {
@@ -62,6 +86,8 @@ export async function sendNewsToTelegram(news) {
 
 async function sendTextMessage(text, newsId) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+  const agent = getProxyAgent();
+
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -70,6 +96,7 @@ async function sendTextMessage(text, newsId) {
       text,
       parse_mode: 'MarkdownV2',
     }),
+    ...(agent ? { agent } : {}),
   });
 
   const data = await response.json();
@@ -84,6 +111,7 @@ async function sendTextMessage(text, newsId) {
 
 async function sendPhoto(imageUrl, caption, newsId) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`;
+  const agent = getProxyAgent();
   const body = {
     chat_id: CHANNEL_ID,
     photo: imageUrl,
@@ -97,6 +125,7 @@ async function sendPhoto(imageUrl, caption, newsId) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    ...(agent ? { agent } : {}),
   });
 
   const data = await response.json();
