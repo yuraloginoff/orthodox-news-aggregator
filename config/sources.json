@@ -150,13 +150,13 @@
     },
     {
       "id": "R25",
-      "name": "Патриархия.ru",
+      "name": "Патриархия•ru",
       "url": "https://api.patriarchia.ru/v1/rss/news",
       "priority": "high"
     },
     {
       "id": "R26",
-      "name": "Православие.ру",
+      "name": "Православие•ру",
       "url": "https://pravoslavie.ru/xml/full.xml",
       "priority": "high",
       "filters": {
@@ -168,14 +168,16 @@
       "name": "Союз православных журналистов (СПЖ)",
       "url": "https://spzh.eu/rss",
       "priority": "high",
-      "proxy": true
+      "proxy": true,
+      "region": "Украина"
     },
     {
       "id": "MD1",
       "name": "Митрополия Молдовы",
       "url": "https://mitropolia.md/ru/feed/",
       "priority": "high",
-      "proxy": true
+      "proxy": true,
+      "region": "Молдова"
     }
   ]
 }
