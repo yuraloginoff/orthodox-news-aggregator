@@ -3,6 +3,11 @@
 // api.telegram.org заблокирован для российских IP, поэтому запросы идут через
 // тот же SOCKS5-прокси (RSS_PROXY_URL), что и парсер для UA3/MD1.
 //
+// Картинки скачиваются на нашей стороне и отправляются как multipart/form-data,
+// а не по прямому URL — некоторые источники (например eparhsp.ru) блокируют
+// запросы от инфраструктуры Telegram напрямую ("failed to get HTTP URL content"),
+// но пропускают обычные запросы через наш SOCKS5-туннель.
+//
 // Формат сообщения:
 // *Префикс: Заголовок*   (префикс = region источника, если задан, иначе name)
 //
@@ -11,6 +16,7 @@
 // Источник: [полное название источника](ссылка)   (всегда name, не region)
 
 import fetch from 'node-fetch';
+import FormData from 'form-data';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import logger from './logger.js';
 
@@ -51,13 +57,6 @@ function escapeMarkdownV2(text) {
   return text.replace(/[_*\[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
 }
 
-/**
- * Формирует текст сообщения.
- * @param {{title: string, text: string, link: string, sourceName: string, sourceRegion?: string}} news
- *   sourceName — полное название источника (для строки "Источник: ...")
- *   sourceRegion — опциональный префикс перед заголовком (например "Украина", "Молдова").
- *                  Если не задан, префиксом становится sourceName (название епархии).
- */
 export function buildMessageText(news) {
   const prefix = escapeMarkdownV2(news.sourceRegion || news.sourceName || '');
   const titleText = escapeMarkdownV2(news.title || 'Без заголовка');
@@ -77,6 +76,40 @@ export function buildMessageText(news) {
   return message;
 }
 
+/**
+ * Скачивает изображение с исходного сайта через наш прокси (если задан RSS_PROXY_URL).
+ * Возвращает Buffer с содержимым файла, либо null при ошибке (не бросает исключение,
+ * чтобы вызывающий код мог откатиться на отправку текстом без фото).
+ */
+async function downloadImage(imageUrl) {
+  const agent = getProxyAgent();
+  try {
+    const response = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; OrthodoxNewsAggregator/1.0)',
+      },
+      ...(agent ? { agent } : {}),
+    });
+
+    if (!response.ok) {
+      logger.warn(`Failed to download image (status ${response.status}): ${imageUrl}`);
+      return null;
+    }
+
+    const buffer = await response.buffer();
+
+    if (buffer.length > 10 * 1024 * 1024) {
+      logger.warn(`Image too large (${buffer.length} bytes), skipping: ${imageUrl}`);
+      return null;
+    }
+
+    return buffer;
+  } catch (error) {
+    logger.warn(`Error downloading image ${imageUrl}: ${error.message}`);
+    return null;
+  }
+}
+
 export async function sendNewsToTelegram(news) {
   assertConfigured();
   const message = buildMessageText(news);
@@ -84,12 +117,18 @@ export async function sendNewsToTelegram(news) {
 
   try {
     if (news.imageUrl) {
-      if (message.length <= CAPTION_LIMIT) {
-        return await sendPhoto(news.imageUrl, message, news.id);
+      const imageBuffer = await downloadImage(news.imageUrl);
+
+      if (imageBuffer) {
+        if (message.length <= CAPTION_LIMIT) {
+          return await sendPhotoFile(imageBuffer, message, news.id);
+        }
+        const photoResult = await sendPhotoFile(imageBuffer, null, news.id);
+        if (!photoResult.ok) return photoResult;
+        return await sendTextMessage(message, news.id);
       }
-      const photoResult = await sendPhoto(news.imageUrl, null, news.id);
-      if (!photoResult.ok) return photoResult;
-      return await sendTextMessage(message, news.id);
+
+      logger.warn(`Falling back to text-only message for news ${news.id} (image download failed)`);
     }
 
     return await sendTextMessage(message, news.id);
@@ -124,31 +163,34 @@ async function sendTextMessage(text, newsId) {
   return { ok: true, result: data.result };
 }
 
-async function sendPhoto(imageUrl, caption, newsId) {
+/**
+ * Отправляет фото как multipart/form-data (не по URL) — устойчиво к сайтам,
+ * которые блокируют запросы напрямую от Telegram, но пропускают наш прокси.
+ */
+async function sendPhotoFile(imageBuffer, caption, newsId) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`;
   const agent = getProxyAgent();
-  const body = {
-    chat_id: CHANNEL_ID,
-    photo: imageUrl,
-  };
+
+  const form = new FormData();
+  form.append('chat_id', CHANNEL_ID);
+  form.append('photo', imageBuffer, { filename: 'photo.jpg' });
   if (caption) {
-    body.caption = caption;
-    body.parse_mode = 'MarkdownV2';
+    form.append('caption', caption);
+    form.append('parse_mode', 'MarkdownV2');
   }
 
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: form,
     ...(agent ? { agent } : {}),
   });
 
   const data = await response.json();
   if (!data.ok) {
-    logger.error('Telegram sendPhoto error', { description: data.description, imageUrl });
+    logger.error('Telegram sendPhoto (file) error', { description: data.description });
     return { ok: false, error: data.description || 'Unknown Telegram API error' };
   }
 
-  logger.info('News sent to Telegram (photo)', { newsId, messageId: data.result.message_id });
+  logger.info('News sent to Telegram (photo file)', { newsId, messageId: data.result.message_id });
   return { ok: true, result: data.result };
 }
