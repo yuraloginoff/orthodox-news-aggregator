@@ -36,13 +36,15 @@ for (const [column, sql] of migrations) {
   }
 }
 
-// --- Карта source_id -> человекочитаемое название источника ---
+// --- Карта source_id -> { name, region } из config/sources.json ---
+// region — опциональное поле для источников типа UA3/MD1 (например "Украина", "Молдова"),
+// используется как префикс перед заголовком вместо name.
 const sourcesConfigPath = path.join(__dirname, '..', 'config', 'sources.json');
-let sourceNameById = {};
+let sourceInfoById = {};
 try {
   const sourcesConfig = JSON.parse(readFileSync(sourcesConfigPath, 'utf-8'));
-  sourceNameById = Object.fromEntries(
-    sourcesConfig.sources.map((s) => [s.id, s.name])
+  sourceInfoById = Object.fromEntries(
+    sourcesConfig.sources.map((s) => [s.id, { name: s.name, region: s.region || null }])
   );
 } catch (err) {
   logger.warn('Не удалось загрузить config/sources.json для названий источников', {
@@ -50,8 +52,8 @@ try {
   });
 }
 
-function getSourceName(sourceId) {
-  return sourceNameById[sourceId] || sourceId;
+function getSourceInfo(sourceId) {
+  return sourceInfoById[sourceId] || { name: sourceId, region: null };
 }
 
 app.use(express.json());
@@ -84,6 +86,7 @@ app.use((req, res, next) => {
 function enrichNews(news) {
   const autoText = truncateText(htmlToPlainText(news.content));
   const autoImage = extractImageUrl(news.content);
+  const sourceInfo = getSourceInfo(news.source_id);
 
   return {
     id: news.id,
@@ -101,7 +104,8 @@ function enrichNews(news) {
     image_url: news.edited_image_url !== null && news.edited_image_url !== undefined
       ? news.edited_image_url
       : autoImage,
-    source_name: getSourceName(news.source_id),
+    source_name: sourceInfo.name,
+    source_region: sourceInfo.region,
   };
 }
 
@@ -142,12 +146,11 @@ app.get('/api/news', (req, res) => {
   res.json({ news: news.map(enrichNews), total, page: Number(page), limit: Number(limit) });
 });
 
-// --- API: список источников для фильтра (id + человекочитаемое имя) ---
 app.get('/api/sources', (req, res) => {
   const sources = db
     .prepare('SELECT DISTINCT source_id FROM news ORDER BY source_id')
     .all();
-  res.json(sources.map((s) => ({ id: s.source_id, name: getSourceName(s.source_id) })));
+  res.json(sources.map((s) => ({ id: s.source_id, name: getSourceInfo(s.source_id).name })));
 });
 
 app.patch('/api/news/:id', (req, res) => {
@@ -197,6 +200,7 @@ app.post('/api/news/:id/send', async (req, res) => {
     text: finalText,
     link: news.link,
     sourceName: news.source_name,
+    sourceRegion: news.source_region,
     imageUrl: finalImageUrl || null,
   });
 

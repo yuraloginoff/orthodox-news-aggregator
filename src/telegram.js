@@ -2,6 +2,13 @@
 // Отправка новостей в Telegram-канал через Bot API.
 // api.telegram.org заблокирован для российских IP, поэтому запросы идут через
 // тот же SOCKS5-прокси (RSS_PROXY_URL), что и парсер для UA3/MD1.
+//
+// Формат сообщения:
+// *Префикс: Заголовок*   (префикс = region источника, если задан, иначе name)
+//
+// Текст новости
+//
+// Источник: [полное название источника](ссылка)   (всегда name, не region)
 
 import fetch from 'node-fetch';
 import { SocksProxyAgent } from 'socks-proxy-agent';
@@ -44,13 +51,21 @@ function escapeMarkdownV2(text) {
   return text.replace(/[_*\[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
 }
 
+/**
+ * Формирует текст сообщения.
+ * @param {{title: string, text: string, link: string, sourceName: string, sourceRegion?: string}} news
+ *   sourceName — полное название источника (для строки "Источник: ...")
+ *   sourceRegion — опциональный префикс перед заголовком (например "Украина", "Молдова").
+ *                  Если не задан, префиксом становится sourceName (название епархии).
+ */
 export function buildMessageText(news) {
-  const title = escapeMarkdownV2(news.title || 'Без заголовка');
+  const prefix = escapeMarkdownV2(news.sourceRegion || news.sourceName || '');
+  const titleText = escapeMarkdownV2(news.title || 'Без заголовка');
   const bodyText = (news.text || '').trim();
   const link = news.link;
   const sourceLabel = escapeMarkdownV2(news.sourceName || 'Первоисточник');
 
-  let message = `*${title}*`;
+  let message = prefix ? `*${prefix}: ${titleText}*` : `*${titleText}*`;
 
   if (bodyText) {
     const escapedBody = escapeMarkdownV2(bodyText);
