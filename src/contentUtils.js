@@ -7,7 +7,9 @@
 // только HTML-теги, а не HTML-entity (&nbsp;, &laquo;, &raquo; и т.д.) — поэтому нужно
 // декодировать entity отдельно, до того как текст попадёт в превью.
 
+
 import sanitizeHtml from 'sanitize-html';
+
 
 const NAMED_ENTITIES = {
   '&nbsp;': ' ',
@@ -26,6 +28,7 @@ const NAMED_ENTITIES = {
   '&trade;': '™',
 };
 
+
 /**
  * Декодирует HTML-сущности (&nbsp;, &laquo;, &raquo;, &#1090; и т.д.) в обычные символы.
  * &amp; декодируется последним, чтобы не сломать другие сущности при повторном проходе.
@@ -33,50 +36,77 @@ const NAMED_ENTITIES = {
 export function decodeHtmlEntities(text) {
   if (!text) return text;
 
+
   let result = text;
+
 
   for (const [entity, char] of Object.entries(NAMED_ENTITIES)) {
     result = result.split(entity).join(char);
   }
 
+
   result = result.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
   result = result.replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
 
+
   result = result.split('&amp;').join('&');
+
 
   return result;
 }
 
+
 export function extractImageUrl(html) {
   if (!html) return null;
+
 
   const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
   if (imgMatch) return imgMatch[1];
 
+
   return null;
 }
+
+
+/**
+ * Заменяет плейсхолдер обрезки WordPress-фидов "[…]" (иногда "[...]")
+ * на обычное многоточие без пробела перед ним, например:
+ * "текст новости […]" -> "текст новости…"
+ */
+function normalizeTruncationPlaceholder(text) {
+  return text.replace(/\s*\[\s*(?:…|\.\.\.)\s*\]/g, '…');
+}
+
 
 export function htmlToPlainText(html) {
   if (!html) return '';
 
+
   const withBreaks = html
     .replace(/<\/(p|div|br)>/gi, '\n\n')
     .replace(/<br\s*\/?>/gi, '\n\n');
+
 
   const plain = sanitizeHtml(withBreaks, {
     allowedTags: [],
     allowedAttributes: {},
   });
 
+
   const decoded = decodeHtmlEntities(plain);
 
-  return decoded
+
+  const normalized = normalizeTruncationPlaceholder(decoded);
+
+
+  return normalized
     .split('\n')
     .map((line) => line.trim())
     .filter((line, idx, arr) => !(line === '' && arr[idx - 1] === ''))
     .join('\n')
     .trim();
 }
+
 
 export function truncateText(text, maxLength = 3500) {
   if (!text || text.length <= maxLength) return text;
