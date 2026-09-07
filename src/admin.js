@@ -20,7 +20,6 @@ const app = express();
 const PORT = process.env.ADMIN_PORT || 3001;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
-// --- Миграция БД для админки (идемпотентна, безопасно выполнять при каждом старте) ---
 const newsColumns = db.prepare("PRAGMA table_info(news)").all().map((c) => c.name);
 const migrations = [
   ['sent_to_telegram', 'ALTER TABLE news ADD COLUMN sent_to_telegram INTEGER DEFAULT 0'],
@@ -36,15 +35,16 @@ for (const [column, sql] of migrations) {
   }
 }
 
-// --- Карта source_id -> { name, region } из config/sources.json ---
-// region — опциональное поле для источников типа UA3/MD1 (например "Украина", "Молдова"),
-// используется как префикс перед заголовком вместо name.
+// --- Карта source_id -> { name, region, requiresProxy } из config/sources.json ---
 const sourcesConfigPath = path.join(__dirname, '..', 'config', 'sources.json');
 let sourceInfoById = {};
 try {
   const sourcesConfig = JSON.parse(readFileSync(sourcesConfigPath, 'utf-8'));
   sourceInfoById = Object.fromEntries(
-    sourcesConfig.sources.map((s) => [s.id, { name: s.name, region: s.region || null }])
+    sourcesConfig.sources.map((s) => [
+      s.id,
+      { name: s.name, region: s.region || null, requiresProxy: Boolean(s.proxy) },
+    ])
   );
 } catch (err) {
   logger.warn('Не удалось загрузить config/sources.json для названий источников', {
@@ -53,7 +53,7 @@ try {
 }
 
 function getSourceInfo(sourceId) {
-  return sourceInfoById[sourceId] || { name: sourceId, region: null };
+  return sourceInfoById[sourceId] || { name: sourceId, region: null, requiresProxy: false };
 }
 
 app.use(express.json());
@@ -79,10 +79,6 @@ app.use((req, res, next) => {
   next();
 });
 
-/**
- * Дополняет запись новости производными полями.
- * title и preview_text прогоняются через decodeHtmlEntities.
- */
 function enrichNews(news) {
   const autoText = truncateText(htmlToPlainText(news.content));
   const autoImage = extractImageUrl(news.content);
@@ -106,6 +102,7 @@ function enrichNews(news) {
       : autoImage,
     source_name: sourceInfo.name,
     source_region: sourceInfo.region,
+    source_requires_proxy: sourceInfo.requiresProxy,
   };
 }
 
@@ -202,6 +199,7 @@ app.post('/api/news/:id/send', async (req, res) => {
     sourceName: news.source_name,
     sourceRegion: news.source_region,
     imageUrl: finalImageUrl || null,
+    imageRequiresProxy: news.source_requires_proxy,
   });
 
   if (!result.ok) {

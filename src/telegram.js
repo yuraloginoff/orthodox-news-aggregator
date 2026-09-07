@@ -1,19 +1,10 @@
 // src/telegram.js
 // Отправка новостей в Telegram-канал через Bot API.
-// api.telegram.org заблокирован для российских IP, поэтому запросы идут через
-// тот же SOCKS5-прокси (RSS_PROXY_URL), что и парсер для UA3/MD1.
-//
-// Картинки скачиваются на нашей стороне и отправляются как multipart/form-data,
-// а не по прямому URL — некоторые источники (например eparhsp.ru) блокируют
-// запросы от инфраструктуры Telegram напрямую ("failed to get HTTP URL content"),
-// но пропускают обычные запросы через наш SOCKS5-туннель.
-//
-// Формат сообщения:
-// *Префикс: Заголовок*   (префикс = region источника, если задан, иначе name)
-//
-// Текст новости
-//
-// Источник: [полное название источника](ссылка)   (всегда name, не region)
+// api.telegram.org заблокирован для российских IP, поэтому запросы к самому Telegram
+// всегда идут через SOCKS5-прокси (RSS_PROXY_URL). Картинки скачиваются напрямую
+// (без прокси) — большинство источников это обычные российские сайты, доступные
+// без туннеля; для картинок с уже заблокированных источников (UA3/MD1) прокси
+// используется отдельно, через параметр useProxyForImage.
 
 import fetch from 'node-fetch';
 import FormData from 'form-data';
@@ -77,37 +68,49 @@ export function buildMessageText(news) {
 }
 
 /**
- * Скачивает изображение с исходного сайта через наш прокси (если задан RSS_PROXY_URL).
- * Возвращает Buffer с содержимым файла, либо null при ошибке (не бросает исключение,
- * чтобы вызывающий код мог откатиться на отправку текстом без фото).
+ * Скачивает изображение с исходного сайта.
+ * По умолчанию — напрямую, без прокси (большинство источников — обычные
+ * российские сайты, доступные без туннеля). Если useProxy=true (источник
+ * сам требует прокси, например UA3/MD1), используется SOCKS5-агент.
+ *
+ * Если прямой запрос не удался и прокси ещё не пробовали — делает повторную
+ * попытку через прокси на случай, если картинка тоже раздаётся с заблокированного
+ * CDN/поддомена. Возвращает null при полном провале (не бросает исключение).
  */
-async function downloadImage(imageUrl) {
-  const agent = getProxyAgent();
-  try {
-    const response = await fetch(imageUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; OrthodoxNewsAggregator/1.0)',
-      },
-      ...(agent ? { agent } : {}),
-    });
+async function downloadImage(imageUrl, useProxy = false) {
+  const attempts = useProxy ? [true] : [false, true];
 
-    if (!response.ok) {
-      logger.warn(`Failed to download image (status ${response.status}): ${imageUrl}`);
-      return null;
+  for (const withProxy of attempts) {
+    const agent = withProxy ? getProxyAgent() : null;
+    if (withProxy && !agent) continue;
+
+    try {
+      const response = await fetch(imageUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; OrthodoxNewsAggregator/1.0)',
+        },
+        ...(agent ? { agent } : {}),
+      });
+
+      if (!response.ok) {
+        logger.warn(`Failed to download image (status ${response.status}, proxy=${withProxy}): ${imageUrl}`);
+        continue;
+      }
+
+      const buffer = await response.buffer();
+
+      if (buffer.length > 10 * 1024 * 1024) {
+        logger.warn(`Image too large (${buffer.length} bytes), skipping: ${imageUrl}`);
+        return null;
+      }
+
+      return buffer;
+    } catch (error) {
+      logger.warn(`Error downloading image (proxy=${withProxy}) ${imageUrl}: ${error.message}`);
     }
-
-    const buffer = await response.buffer();
-
-    if (buffer.length > 10 * 1024 * 1024) {
-      logger.warn(`Image too large (${buffer.length} bytes), skipping: ${imageUrl}`);
-      return null;
-    }
-
-    return buffer;
-  } catch (error) {
-    logger.warn(`Error downloading image ${imageUrl}: ${error.message}`);
-    return null;
   }
+
+  return null;
 }
 
 export async function sendNewsToTelegram(news) {
@@ -117,7 +120,7 @@ export async function sendNewsToTelegram(news) {
 
   try {
     if (news.imageUrl) {
-      const imageBuffer = await downloadImage(news.imageUrl);
+      const imageBuffer = await downloadImage(news.imageUrl, Boolean(news.imageRequiresProxy));
 
       if (imageBuffer) {
         if (message.length <= CAPTION_LIMIT) {
@@ -163,10 +166,6 @@ async function sendTextMessage(text, newsId) {
   return { ok: true, result: data.result };
 }
 
-/**
- * Отправляет фото как multipart/form-data (не по URL) — устойчиво к сайтам,
- * которые блокируют запросы напрямую от Telegram, но пропускают наш прокси.
- */
 async function sendPhotoFile(imageBuffer, caption, newsId) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`;
   const agent = getProxyAgent();
