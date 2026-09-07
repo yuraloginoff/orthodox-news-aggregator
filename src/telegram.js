@@ -5,9 +5,11 @@
 // (без прокси) — большинство источников это обычные российские сайты, доступные
 // без туннеля; для картинок с уже заблокированных источников (UA3/MD1) прокси
 // используется отдельно, через параметр useProxyForImage.
+//
+// Используется нативный FormData/Blob (Node.js 18+), а не пакет form-data —
+// node-fetch v3 официально не совместим с form-data (Socket closed при отправке).
 
 import fetch from 'node-fetch';
-import FormData from 'form-data';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import logger from './logger.js';
 
@@ -67,16 +69,6 @@ export function buildMessageText(news) {
   return message;
 }
 
-/**
- * Скачивает изображение с исходного сайта.
- * По умолчанию — напрямую, без прокси (большинство источников — обычные
- * российские сайты, доступные без туннеля). Если useProxy=true (источник
- * сам требует прокси, например UA3/MD1), используется SOCKS5-агент.
- *
- * Если прямой запрос не удался и прокси ещё не пробовали — делает повторную
- * попытку через прокси на случай, если картинка тоже раздаётся с заблокированного
- * CDN/поддомена. Возвращает null при полном провале (не бросает исключение).
- */
 async function downloadImage(imageUrl, useProxy = false) {
   const attempts = useProxy ? [true] : [false, true];
 
@@ -97,14 +89,14 @@ async function downloadImage(imageUrl, useProxy = false) {
         continue;
       }
 
-      const buffer = await response.buffer();
+      const arrayBuffer = await response.arrayBuffer();
 
-      if (buffer.length > 10 * 1024 * 1024) {
-        logger.warn(`Image too large (${buffer.length} bytes), skipping: ${imageUrl}`);
+      if (arrayBuffer.byteLength > 10 * 1024 * 1024) {
+        logger.warn(`Image too large (${arrayBuffer.byteLength} bytes), skipping: ${imageUrl}`);
         return null;
       }
 
-      return buffer;
+      return arrayBuffer;
     } catch (error) {
       logger.warn(`Error downloading image (proxy=${withProxy}) ${imageUrl}: ${error.message}`);
     }
@@ -120,13 +112,13 @@ export async function sendNewsToTelegram(news) {
 
   try {
     if (news.imageUrl) {
-      const imageBuffer = await downloadImage(news.imageUrl, Boolean(news.imageRequiresProxy));
+      const imageArrayBuffer = await downloadImage(news.imageUrl, Boolean(news.imageRequiresProxy));
 
-      if (imageBuffer) {
+      if (imageArrayBuffer) {
         if (message.length <= CAPTION_LIMIT) {
-          return await sendPhotoFile(imageBuffer, message, news.id);
+          return await sendPhotoFile(imageArrayBuffer, message, news.id);
         }
-        const photoResult = await sendPhotoFile(imageBuffer, null, news.id);
+        const photoResult = await sendPhotoFile(imageArrayBuffer, null, news.id);
         if (!photoResult.ok) return photoResult;
         return await sendTextMessage(message, news.id);
       }
@@ -166,13 +158,17 @@ async function sendTextMessage(text, newsId) {
   return { ok: true, result: data.result };
 }
 
-async function sendPhotoFile(imageBuffer, caption, newsId) {
+/**
+ * Отправляет фото как multipart/form-data через нативный FormData/Blob
+ * (Node.js 18+), а не пакет form-data — избегаем несовместимости с node-fetch v3.
+ */
+async function sendPhotoFile(imageArrayBuffer, caption, newsId) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`;
   const agent = getProxyAgent();
 
   const form = new FormData();
   form.append('chat_id', CHANNEL_ID);
-  form.append('photo', imageBuffer, { filename: 'photo.jpg' });
+  form.append('photo', new Blob([imageArrayBuffer]), 'photo.jpg');
   if (caption) {
     form.append('caption', caption);
     form.append('parse_mode', 'MarkdownV2');
