@@ -8,6 +8,12 @@
 //
 // Используется нативный FormData/Blob (Node.js 18+), а не пакет form-data —
 // node-fetch v3 официально не совместим с form-data (Socket closed при отправке).
+//
+// Ссылка на первоисточник в тексте сообщения отправляется с link_preview_options.is_disabled,
+// чтобы Telegram не разворачивал карточку-превью сайта-источника под постом —
+// у нас уже есть своя картинка (sendPhoto) или новость чисто текстовая, двойная
+// карточка ссылки только захламляет пост. disable_web_page_preview устарел с декабря 2023
+// (см. https://core.telegram.org/bots/api#linkpreviewoptions).
 
 import fetch from 'node-fetch';
 import { SocksProxyAgent } from 'socks-proxy-agent';
@@ -144,6 +150,7 @@ async function sendTextMessage(text, newsId) {
       chat_id: CHANNEL_ID,
       text,
       parse_mode: 'MarkdownV2',
+      link_preview_options: { is_disabled: true },
     }),
     ...(agent ? { agent } : {}),
   });
