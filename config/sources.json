@@ -10,7 +10,8 @@
       "id": "R2",
       "name": "Коломенская епархия",
       "url": "https://mosmit.ru/news/rss/",
-      "priority": "medium"
+      "priority": "medium",
+      "enabled": false
     },
     {
       "id": "R3",
