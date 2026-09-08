@@ -150,7 +150,7 @@
     },
     {
       "id": "R25",
-      "name": "Патриархия•ru",
+      "name": "Патриархия",
       "url": "https://api.patriarchia.ru/v1/rss/news",
       "priority": "high"
     },
