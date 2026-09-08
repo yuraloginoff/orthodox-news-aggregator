@@ -3,16 +3,21 @@ import http from 'http';
 import { URL } from 'url';
 import xml2js from 'xml2js';
 import { SocksProxyAgent } from 'socks-proxy-agent';
+import { readFileSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import cron from 'node-cron';
+import 'dotenv/config';
+import { initDb, insertNews } from './db.js';
 import logger from './logger.js';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const parser = new xml2js.Parser({ explicitCharkey: false, trim: true });
-
 
 function sanitizeXml(xml) {
   return xml.replace(/&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[0-9a-fA-F]+;)/g, '&amp;');
 }
-
 
 function safeParseDate(dateStr) {
   if (!dateStr) return new Date().toISOString();
@@ -22,7 +27,6 @@ function safeParseDate(dateStr) {
   }
   return parsed.toISOString();
 }
-
 
 let cachedProxyAgent = null;
 let proxyAgentInitialized = false;
@@ -46,13 +50,11 @@ function getProxyAgent() {
   return cachedProxyAgent;
 }
 
-
 async function fetchItem(source, maxRedirects = 5) {
   if (source.enabled === false) {
     logger.info(`Skipping ${source.id} (${source.name}): disabled`);
     return [];
   }
-
 
   const fetchUrl = source.url;
   let proxyAgent = null;
@@ -64,11 +66,9 @@ async function fetchItem(source, maxRedirects = 5) {
     }
   }
 
-
   return new Promise((resolve, reject) => {
     const urlObj = new URL(fetchUrl);
     const lib = urlObj.protocol === 'https:' ? https : http;
-
 
     const options = {
       hostname: urlObj.hostname,
@@ -80,7 +80,6 @@ async function fetchItem(source, maxRedirects = 5) {
       timeout: 30000,
       ...(proxyAgent ? { agent: proxyAgent } : {})
     };
-
 
     const request = lib.get(options, (response) => {
       if ([301, 302, 307, 308].includes(response.statusCode)) {
@@ -98,20 +97,16 @@ async function fetchItem(source, maxRedirects = 5) {
         }
       }
 
-
       let data = '';
-
 
       if (response.statusCode !== 200) {
         reject(new Error(`Failed to fetch ${fetchUrl}: ${response.statusCode}`));
         return;
       }
 
-
       response.on('data', (chunk) => {
         data += chunk;
       });
-
 
       response.on('end', async () => {
         try {
@@ -125,11 +120,9 @@ async function fetchItem(source, maxRedirects = 5) {
       });
     });
 
-
     request.on('error', (error) => {
       reject(new Error(`Network error for ${source.id}: ${error.message}`));
     });
-
 
     request.setTimeout(30000, () => {
       request.destroy();
@@ -138,10 +131,8 @@ async function fetchItem(source, maxRedirects = 5) {
   });
 }
 
-
 function extractItems(parsed, source) {
   const items = [];
-
 
   if (parsed.rss && parsed.rss.channel && parsed.rss.channel[0].item) {
     for (const item of parsed.rss.channel[0].item) {
@@ -152,7 +143,6 @@ function extractItems(parsed, source) {
     }
   }
 
-
   if (parsed.feed && parsed.feed.entry) {
     for (const entry of parsed.feed.entry) {
       const normalized = normalizeItem(entry, source);
@@ -162,10 +152,8 @@ function extractItems(parsed, source) {
     }
   }
 
-
   return items;
 }
-
 
 function normalizeItem(item, source) {
   const title = item.title ? item.title[0] : '';
@@ -175,7 +163,6 @@ function normalizeItem(item, source) {
   const category = item.category ?
     (Array.isArray(item.category) ? item.category.map(c => c._ || c) : [item.category]) :
     [];
-
 
   return {
     sourceId: source.id,
@@ -189,28 +176,23 @@ function normalizeItem(item, source) {
   };
 }
 
-
 function shouldInclude(item, source) {
   if (!source.filters || !source.filters.categories) {
     return true;
   }
 
-
   const allowedCategories = source.filters.categories;
   return item.categories.some(cat => allowedCategories.includes(cat));
 }
 
-
 async function fetchAllSources(sources) {
   const allItems = [];
-
 
   for (const source of sources) {
     if (source.enabled === false) {
       logger.info(`Skipping ${source.id} (${source.name}): disabled`);
       continue;
     }
-
 
     try {
       logger.info(`Fetching ${source.name} (${source.id})`);
@@ -222,10 +204,49 @@ async function fetchAllSources(sources) {
     }
   }
 
-
   return allItems;
 }
 
+// --- Точка входа: чтение источников, единоразовый запуск при старте + планирование по cron.
+// Раньше файл содержал только объявления функций и export — ничего их не вызывало,
+// поэтому `npm start` мгновенно завершался без единого лога — модуль загружался, объявлял
+// функции и сразу завершался, так как никакого кода верхнего уровня не было.
+
+function loadSources() {
+  const configPath = path.join(__dirname, '..', 'config', 'sources.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+  return config.sources;
+}
+
+async function runParsingCycle() {
+  const sources = loadSources();
+  logger.info(`Starting parsing cycle for ${sources.length} sources`);
+
+  const items = await fetchAllSources(sources);
+
+  let inserted = 0;
+  for (const item of items) {
+    if (insertNews(item)) inserted += 1;
+  }
+
+  logger.info(`Parsing cycle finished: ${items.length} items fetched, ${inserted} new saved to DB`);
+}
+
+initDb();
+
+const CRON_SCHEDULE = process.env.PARSER_CRON_SCHEDULE || '0 * * * *';
+
+runParsingCycle().catch((error) => {
+  logger.error(`Parsing cycle failed: ${error.message}`, { error });
+});
+
+cron.schedule(CRON_SCHEDULE, () => {
+  runParsingCycle().catch((error) => {
+    logger.error(`Scheduled parsing cycle failed: ${error.message}`, { error });
+  });
+});
+
+logger.info(`Parser scheduled with cron expression: ${CRON_SCHEDULE}`);
 
 export {
   fetchItem,
