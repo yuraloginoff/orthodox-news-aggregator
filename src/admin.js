@@ -34,7 +34,7 @@ for (const [column, sql] of migrations) {
   }
 }
 
-// --- Карта source_id -> { name, region, requiresProxy } из config/sources.json ---
+// --- Карта source_id -> { name, region, requiresProxy, enabled } из config/sources.json ---
 const sourcesConfigPath = path.join(__dirname, '..', 'config', 'sources.json');
 let sourceInfoById = {};
 try {
@@ -42,7 +42,12 @@ try {
   sourceInfoById = Object.fromEntries(
     sourcesConfig.sources.map((s) => [
       s.id,
-      { name: s.name, region: s.region || null, requiresProxy: Boolean(s.proxy) },
+      {
+        name: s.name,
+        region: s.region || null,
+        requiresProxy: Boolean(s.proxy),
+        enabled: s.enabled !== false,
+      },
     ])
   );
 } catch (err) {
@@ -52,7 +57,14 @@ try {
 }
 
 function getSourceInfo(sourceId) {
-  return sourceInfoById[sourceId] || { name: sourceId, region: null, requiresProxy: false };
+  return (
+    sourceInfoById[sourceId] || {
+      name: sourceId,
+      region: null,
+      requiresProxy: false,
+      enabled: true,
+    }
+  );
 }
 
 app.use(express.json());
@@ -141,8 +153,12 @@ app.get('/api/sources', (req, res) => {
     .prepare('SELECT DISTINCT source_id FROM news')
     .all();
 
+  // Скрываем из дропдауна источники, выключенные в config/sources.json (enabled: false),
+  // даже если в базе ещё остались их старые новости, спаршенные до отключения.
   const enriched = sources
-    .map((s) => ({ id: s.source_id, name: getSourceInfo(s.source_id).name }))
+    .map((s) => ({ id: s.source_id, ...getSourceInfo(s.source_id) }))
+    .filter((s) => s.enabled)
+    .map((s) => ({ id: s.id, name: s.name }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
 
   res.json(enriched);
