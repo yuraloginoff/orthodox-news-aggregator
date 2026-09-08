@@ -14,6 +14,11 @@
 // у нас уже есть своя картинка (sendPhoto) или новость чисто текстовая, двойная
 // карточка ссылки только захламляет пост. disable_web_page_preview устарел с декабря 2023
 // (см. https://core.telegram.org/bots/api#linkpreviewoptions).
+//
+// Некоторые сайты (например media.pravoslavie.ru) проверяют заголовок Referer и отдают
+// 404 ваша картинки без него 200 (вместо более ожидаемого 403) — маскирует hotlink-защиту
+// под "файл не найден". Поэтому downloadImage передаёт Referer = страница новости (news.link),
+// имитируя браузер, который подтягивает его автоматически с той страницы, на которой встретилась картинка.
 
 import fetch from 'node-fetch';
 import { SocksProxyAgent } from 'socks-proxy-agent';
@@ -75,8 +80,17 @@ export function buildMessageText(news) {
   return message;
 }
 
-async function downloadImage(imageUrl, useProxy = false) {
+function getOrigin(urlString) {
+  try {
+    return new URL(urlString).origin;
+  } catch {
+    return null;
+  }
+}
+
+async function downloadImage(imageUrl, useProxy = false, refererUrl = null) {
   const attempts = useProxy ? [true] : [false, true];
+  const referer = refererUrl || getOrigin(imageUrl);
 
   for (const withProxy of attempts) {
     const agent = withProxy ? getProxyAgent() : null;
@@ -86,6 +100,7 @@ async function downloadImage(imageUrl, useProxy = false) {
       const response = await fetch(imageUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; OrthodoxNewsAggregator/1.0)',
+          ...(referer ? { Referer: referer } : {}),
         },
         ...(agent ? { agent } : {}),
       });
@@ -118,7 +133,11 @@ export async function sendNewsToTelegram(news) {
 
   try {
     if (news.imageUrl) {
-      const imageArrayBuffer = await downloadImage(news.imageUrl, Boolean(news.imageRequiresProxy));
+      const imageArrayBuffer = await downloadImage(
+        news.imageUrl,
+        Boolean(news.imageRequiresProxy),
+        news.link
+      );
 
       if (imageArrayBuffer) {
         if (message.length <= CAPTION_LIMIT) {
