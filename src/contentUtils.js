@@ -6,6 +6,11 @@
 // (например, &amp;nbsp; в XML становится &nbsp; в JS-строке), но sanitize-html убирает
 // только HTML-теги, а не HTML-entity (&nbsp;, &laquo;, &raquo; и т.д.) — поэтому нужно
 // декодировать entity отдельно, до того как текст попадёт в превью.
+//
+// Важный нюанс: некоторые источники (например, patriarchia.ru) отдают в RSS дважды
+// экранированные сущности (&amp;laquo; вместо &laquo;). Поэтому &amp; декодируется
+// первым делом — это раскрывает &amp;laquo; -> &laquo;, которое затем корректно
+// превращается в « ниже по циклу.
 
 
 import sanitizeHtml from 'sanitize-html';
@@ -31,13 +36,15 @@ const NAMED_ENTITIES = {
 
 /**
  * Декодирует HTML-сущности (&nbsp;, &laquo;, &raquo;, &#1090; и т.д.) в обычные символы.
- * &amp; декодируется последним, чтобы не сломать другие сущности при повторном проходе.
+ * &amp; декодируется первым — это намеренно, так как у некоторых источников
+ * встречается двойное экранирование (&amp;laquo; вместо &laquo;), и без этого шага
+ * именоованные сущности ниже просто не найдут совпадений и останутся нераскодированными.
  */
 export function decodeHtmlEntities(text) {
   if (!text) return text;
 
 
-  let result = text;
+  let result = text.split('&amp;').join('&');
 
 
   for (const [entity, char] of Object.entries(NAMED_ENTITIES)) {
@@ -47,9 +54,6 @@ export function decodeHtmlEntities(text) {
 
   result = result.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
   result = result.replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
-
-
-  result = result.split('&amp;').join('&');
 
 
   return result;
