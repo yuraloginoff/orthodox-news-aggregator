@@ -16,12 +16,17 @@
 // (см. https://core.telegram.org/bots/api#linkpreviewoptions).
 //
 // Некоторые сайты (например media.pravoslavie.ru) проверяют заголовок Referer и отдают
-// 404 ваша картинки без него 200 (вместо более ожидаемого 403) — маскирует hotlink-защиту
+// 404 ваша картинки без него (вместо более ожидаемого 403) — маскирует hotlink-защиту
 // под "файл не найден". Поэтому downloadImage передаёт Referer = страница новости (news.link),
 // имитируя браузер, который подтягивает его автоматически с той страницы, на которой встретилась картинка.
+//
+// Telegram sendPhoto не принимает WEBP как обычное фото (только как стикер) — перед
+// отправкой скачанная картинка прогоняется через convertImageForTelegram, который
+// конвертирует WEBP в JPEG, а остальные форматы оставляет как есть.
 
 import fetch from 'node-fetch';
 import { SocksProxyAgent } from 'socks-proxy-agent';
+import { convertImageForTelegram } from './imageUtils.js';
 import logger from './logger.js';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -140,10 +145,12 @@ export async function sendNewsToTelegram(news) {
       );
 
       if (imageArrayBuffer) {
+        const convertedImage = await convertImageForTelegram(imageArrayBuffer);
+
         if (message.length <= CAPTION_LIMIT) {
-          return await sendPhotoFile(imageArrayBuffer, message, news.id);
+          return await sendPhotoFile(convertedImage, message, news.id);
         }
-        const photoResult = await sendPhotoFile(imageArrayBuffer, null, news.id);
+        const photoResult = await sendPhotoFile(convertedImage, null, news.id);
         if (!photoResult.ok) return photoResult;
         return await sendTextMessage(message, news.id);
       }
@@ -188,13 +195,13 @@ async function sendTextMessage(text, newsId) {
  * Отправляет фото как multipart/form-data через нативный FormData/Blob
  * (Node.js 18+), а не пакет form-data — избегаем несовместимости с node-fetch v3.
  */
-async function sendPhotoFile(imageArrayBuffer, caption, newsId) {
+async function sendPhotoFile(imageBuffer, caption, newsId) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`;
   const agent = getProxyAgent();
 
   const form = new FormData();
   form.append('chat_id', CHANNEL_ID);
-  form.append('photo', new Blob([imageArrayBuffer]), 'photo.jpg');
+  form.append('photo', new Blob([imageBuffer]), 'photo.jpg');
   if (caption) {
     form.append('caption', caption);
     form.append('parse_mode', 'MarkdownV2');

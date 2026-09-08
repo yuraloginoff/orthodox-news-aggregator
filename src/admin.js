@@ -1,7 +1,7 @@
 // src/admin.js
-// Легкий Express-сервер для админки «Глас».
+// Легкий Express-сервер для админки «Glas».
 // Позволяет просматривать спарсенные новости, редактировать заголовок, текст превью
-// и изображение перед отправкой, отправлять новость в Telegram-канал, скрывать нерелевантные.
+// и изображение перед отправкой, отправлять новость в Telegram-канал, удалять ненужные.
 //
 // Использует именованный экспорт `db` из src/db.js и default export `logger` из src/logger.js.
 
@@ -24,7 +24,6 @@ const newsColumns = db.prepare("PRAGMA table_info(news)").all().map((c) => c.nam
 const migrations = [
   ['sent_to_telegram', 'ALTER TABLE news ADD COLUMN sent_to_telegram INTEGER DEFAULT 0'],
   ['sent_at', 'ALTER TABLE news ADD COLUMN sent_at TEXT'],
-  ['hidden', 'ALTER TABLE news ADD COLUMN hidden INTEGER DEFAULT 0'],
   ['edited_text', 'ALTER TABLE news ADD COLUMN edited_text TEXT'],
   ['edited_image_url', 'ALTER TABLE news ADD COLUMN edited_image_url TEXT'],
 ];
@@ -93,7 +92,6 @@ function enrichNews(news) {
     fetchedAt: news.fetched_at,
     sent_to_telegram: news.sent_to_telegram,
     sent_at: news.sent_at,
-    hidden: news.hidden,
     preview_text: news.edited_text !== null && news.edited_text !== undefined && news.edited_text !== ''
       ? news.edited_text
       : autoText,
@@ -122,11 +120,6 @@ app.get('/api/news', (req, res) => {
   } else if (status === 'unsent') {
     where.push('sent_to_telegram = 0');
   }
-  if (status !== 'hidden') {
-    where.push('(hidden IS NULL OR hidden = 0)');
-  } else {
-    where = ['hidden = 1'];
-  }
 
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
@@ -145,9 +138,14 @@ app.get('/api/news', (req, res) => {
 
 app.get('/api/sources', (req, res) => {
   const sources = db
-    .prepare('SELECT DISTINCT source_id FROM news ORDER BY source_id')
+    .prepare('SELECT DISTINCT source_id FROM news')
     .all();
-  res.json(sources.map((s) => ({ id: s.source_id, name: getSourceInfo(s.source_id).name })));
+
+  const enriched = sources
+    .map((s) => ({ id: s.source_id, name: getSourceInfo(s.source_id).name }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+
+  res.json(enriched);
 });
 
 app.patch('/api/news/:id', (req, res) => {
@@ -219,15 +217,15 @@ app.post('/api/news/:id/send', async (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/news/:id/hide', (req, res) => {
+app.delete('/api/news/:id', (req, res) => {
   const { id } = req.params;
-  db.prepare('UPDATE news SET hidden = 1 WHERE id = ?').run(id);
-  res.json({ ok: true });
-});
+  const result = db.prepare('DELETE FROM news WHERE id = ?').run(id);
 
-app.post('/api/news/:id/unhide', (req, res) => {
-  const { id } = req.params;
-  db.prepare('UPDATE news SET hidden = 0 WHERE id = ?').run(id);
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'News not found' });
+  }
+
+  logger.info('News deleted', { newsId: id });
   res.json({ ok: true });
 });
 

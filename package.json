@@ -2,11 +2,11 @@
   "name": "orthodox-news-aggregator",
   "version": "1.0.0",
   "description": "RSS aggregator for Orthodox news sources",
-  "main": "index.js",
+  "main": "src/parser.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js",
+    "start": "node src/parser.js",
+    "dev": "node --watch src/parser.js",
     "admin": "node src/admin.js"
   },
   "keywords": [
@@ -19,14 +19,14 @@
   "license": "MIT",
   "dependencies": {
     "better-sqlite3": "^9.4.3",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
+    "express": "^4.19.2",
     "fast-xml-parser": "^4.3.2",
     "https-proxy-agent": "^7.0.4",
     "node-cron": "^3.0.3",
     "node-fetch": "^3.3.2",
     "sanitize-html": "^2.12.1",
-    "socks-proxy-agent": "^10.1.0",
+    "sharp": "^0.33.4",
+    "socks-proxy-agent": "^8.0.4",
     "winston": "^3.11.0",
     "xml2js": "^0.6.2"
   }

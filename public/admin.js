@@ -11,6 +11,7 @@ const pageInfoEl = document.getElementById('pageInfo');
 async function loadSources() {
   const res = await fetch('/api/sources');
   const sources = await res.json();
+  // /api/sources возвращает список, уже отсортированный по алфавиту на бэкенде.
   sourceFilterEl.innerHTML =
     '<option value="">Все источники</option>' +
     sources.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
@@ -76,11 +77,7 @@ function renderNewsCard(news) {
         <button class="btn-save" data-action="save" data-id="${news.id}">Сохранить</button>
         <button class="btn-send" data-action="send" data-id="${news.id}">Отправить в Telegram</button>
         <a class="btn-link" href="${news.link}" target="_blank" rel="noopener">Открыть источник</a>
-        ${
-          news.hidden
-            ? `<button class="btn-unhide" data-action="unhide" data-id="${news.id}">Показать</button>`
-            : `<button class="btn-hide" data-action="hide" data-id="${news.id}">Скрыть</button>`
-        }
+        <button class="btn-delete" data-action="delete" data-id="${news.id}">Удалить</button>
       </div>
     </div>
   `;
@@ -160,17 +157,22 @@ function attachHandlers() {
     });
   });
 
-  document.querySelectorAll('[data-action="hide"]').forEach((btn) => {
+  document.querySelectorAll('[data-action="delete"]').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      await fetch(`/api/news/${btn.dataset.id}/hide`, { method: 'POST' });
-      loadNews();
-    });
-  });
+      if (!confirm('Удалить эту новость навсегда? Действие нельзя отменить.')) return;
 
-  document.querySelectorAll('[data-action="unhide"]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      await fetch(`/api/news/${btn.dataset.id}/unhide`, { method: 'POST' });
-      loadNews();
+      btn.disabled = true;
+      btn.textContent = 'Удаление...';
+
+      const res = await fetch(`/api/news/${btn.dataset.id}`, { method: 'DELETE' });
+
+      if (res.ok) {
+        loadNews();
+      } else {
+        alert('Не удалось удалить новость');
+        btn.disabled = false;
+        btn.textContent = 'Удалить';
+      }
     });
   });
 }

@@ -156,8 +156,7 @@ main {
 
 .btn-save { background: #34495e; color: #fff; }
 .btn-send { background: #27ae60; color: #fff; }
-.btn-hide { background: #e74c3c; color: #fff; }
-.btn-unhide { background: #f39c12; color: #fff; }
+.btn-delete { background: #e74c3c; color: #fff; }
 .btn-link { background: none; color: #3498db; text-decoration: underline; padding: 6px 4px; }
 
 .loading, .empty {
