@@ -156,25 +156,41 @@ function extractItems(parsed, source) {
   return items;
 }
 
-/**
- * Извлекает URL картинки из RSS-элемента. Два источника, по приоритету:
- * 1. <enclosure url="..." type="image/..."/> — отдельный тег, атрибуты в xml2js попадают в item.enclosure[0].$
- *    (используется R1, R14, R26, UA3 и др.). Если type указан и не начинается
- *    с "image", пропускается (например аудио/видео enclosure).
- * 2. <img src="..."> внутри <description> — fallback для источников без enclosure (R10).
- */
-function extractImageFromItem(item, description) {
+function normalizeImageUrl(url, sourceUrl) {
+  if (!url) return url;
+
+  let resolved = url;
+  if (!/^https?:\/\//i.test(resolved)) {
+    try {
+      resolved = new URL(resolved, sourceUrl).toString();
+    } catch {
+      return url;
+    }
+  }
+
+  resolved = resolved.replace(/-\d+x\d+(\.\w+)(\?.*)?$/i, '$1$2');
+
+  return resolved;
+}
+
+function extractImageFromItem(item, description, sourceUrl) {
+  let rawUrl = null;
+
   if (item.enclosure && item.enclosure[0]) {
     const enclosure = item.enclosure[0];
     const attrs = enclosure.$ || enclosure;
     const url = attrs && attrs.url;
     const type = attrs && attrs.type;
     if (url && (!type || type.startsWith('image'))) {
-      return url;
+      rawUrl = url;
     }
   }
 
-  return extractImageUrl(description);
+  if (!rawUrl) {
+    rawUrl = extractImageUrl(description);
+  }
+
+  return normalizeImageUrl(rawUrl, sourceUrl);
 }
 
 function normalizeItem(item, source) {
@@ -182,7 +198,7 @@ function normalizeItem(item, source) {
   const link = item.link ? (item.link[0].href || item.link[0]) : '';
   const pubDate = item.pubDate || item.updated || '';
   const rawDescription = item.description ? item.description[0] : '';
-  const imgUrl = extractImageFromItem(item, rawDescription);
+  const imgUrl = extractImageFromItem(item, rawDescription, source.url);
   const plainText = truncateText(htmlToPlainText(rawDescription));
   const category = item.category ?
     (Array.isArray(item.category) ? item.category.map(c => c._ || c) : [item.category]) :
@@ -232,8 +248,6 @@ async function fetchAllSources(sources) {
   return allItems;
 }
 
-// --- Точка входа: чтение источников, единоразовый запуск при старте + планирование по cron.
-
 function loadSources() {
   const configPath = path.join(__dirname, '..', 'config', 'sources.json');
   const config = JSON.parse(readFileSync(configPath, 'utf-8'));
@@ -276,5 +290,6 @@ export {
   extractItems,
   normalizeItem,
   shouldInclude,
-  extractImageFromItem
+  extractImageFromItem,
+  normalizeImageUrl
 };
