@@ -13,7 +13,7 @@
 
 - R6 Сергиево-Посадская - no image
 
-- R7 Санкт-Петербургская - no RSS, 3-rd party RSS
+- ~~R7 Санкт-Петербургская~~ - no RSS, 3-rd party RSS
 
 - R8 Выборгская - no image
 
