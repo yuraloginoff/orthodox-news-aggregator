@@ -17,7 +17,8 @@
       "id": "R3",
       "name": "Балашихинская епархия",
       "url": "https://balep.ru/news/rss/",
-      "priority": "medium"
+      "priority": "medium",
+      "enabled": false
     },
     {
       "id": "R4",
@@ -51,7 +52,7 @@
     },
     {
       "id": "R10",
-      "name": "Тихвинская епархия",
+      "name": "тихвинская епархия",
       "url": "https://www.tikhvin-eparhia.ru/novosti?format=feed&type=rss",
       "priority": "medium"
     },
@@ -178,7 +179,8 @@
       "url": "https://mitropolia.md/ru/feed/",
       "priority": "high",
       "proxy": true,
-      "region": "Молдова"
+      "region": "Молдова",
+      "enabled": false
     }
   ]
 }
