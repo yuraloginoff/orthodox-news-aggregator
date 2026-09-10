@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import cron from 'node-cron';
 import 'dotenv/config';
 import { initDb, insertNews } from './db.js';
+import { extractImageUrl, htmlToPlainText, truncateText } from './contentUtils.js';
 import logger from './logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -155,11 +156,34 @@ function extractItems(parsed, source) {
   return items;
 }
 
+/**
+ * Извлекает URL картинки из RSS-элемента. Два источника, по приоритету:
+ * 1. <enclosure url="..." type="image/..."/> — отдельный тег, атрибуты в xml2js попадают в item.enclosure[0].$
+ *    (используется R1, R14, R26, UA3 и др.). Если type указан и не начинается
+ *    с "image", пропускается (например аудио/видео enclosure).
+ * 2. <img src="..."> внутри <description> — fallback для источников без enclosure (R10).
+ */
+function extractImageFromItem(item, description) {
+  if (item.enclosure && item.enclosure[0]) {
+    const enclosure = item.enclosure[0];
+    const attrs = enclosure.$ || enclosure;
+    const url = attrs && attrs.url;
+    const type = attrs && attrs.type;
+    if (url && (!type || type.startsWith('image'))) {
+      return url;
+    }
+  }
+
+  return extractImageUrl(description);
+}
+
 function normalizeItem(item, source) {
   const title = item.title ? item.title[0] : '';
   const link = item.link ? (item.link[0].href || item.link[0]) : '';
   const pubDate = item.pubDate || item.updated || '';
-  const description = item.description ? item.description[0] : '';
+  const rawDescription = item.description ? item.description[0] : '';
+  const imgUrl = extractImageFromItem(item, rawDescription);
+  const plainText = truncateText(htmlToPlainText(rawDescription));
   const category = item.category ?
     (Array.isArray(item.category) ? item.category.map(c => c._ || c) : [item.category]) :
     [];
@@ -170,7 +194,8 @@ function normalizeItem(item, source) {
     title: title || '',
     link: link || '',
     pubDate: safeParseDate(pubDate),
-    description: description || '',
+    description: plainText || '',
+    imgUrl: imgUrl || null,
     categories: category,
     priority: source.priority || 'medium'
   };
@@ -208,9 +233,6 @@ async function fetchAllSources(sources) {
 }
 
 // --- Точка входа: чтение источников, единоразовый запуск при старте + планирование по cron.
-// Раньше файл содержал только объявления функций и export — ничего их не вызывало,
-// поэтому `npm start` мгновенно завершался без единого лога — модуль загружался, объявлял
-// функции и сразу завершался, так как никакого кода верхнего уровня не было.
 
 function loadSources() {
   const configPath = path.join(__dirname, '..', 'config', 'sources.json');
@@ -253,5 +275,6 @@ export {
   fetchAllSources,
   extractItems,
   normalizeItem,
-  shouldInclude
+  shouldInclude,
+  extractImageFromItem
 };

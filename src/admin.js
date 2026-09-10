@@ -1,7 +1,11 @@
 // src/admin.js
 // Легкий Express-сервер для админки «Glas».
-// Позволяет просматривать спарсенные новости, редактировать заголовок, текст превью
-// и изображение перед отправкой, отправлять новость в Telegram-канал, удалять ненужные.
+// Позволяет просматривать спарсенные новости, редактировать заголовок, текст и
+// картинку перед отправкой, отправлять новость в Telegram-канал, удалять ненужные.
+//
+// title, content и img_url редактируются и сохраняются напрямую в те же колонки,
+// без отдельных edited_* полей. content в базе — это готовый plain text для Telegram
+// (конвертируется из HTML в parser.js на этапе сохранения, а не при каждой отдаче через API).
 //
 // Использует именованный экспорт `db` из src/db.js и default export `logger` из src/logger.js.
 
@@ -12,7 +16,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { db } from './db.js';
 import { sendNewsToTelegram } from './telegram.js';
-import { extractImageUrl, htmlToPlainText, truncateText, decodeHtmlEntities } from './contentUtils.js';
+import { decodeHtmlEntities, htmlToPlainText, truncateText, extractImageUrl } from './contentUtils.js';
 import logger from './logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,17 +25,50 @@ const PORT = process.env.ADMIN_PORT || 3001;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 const newsColumns = db.prepare("PRAGMA table_info(news)").all().map((c) => c.name);
+
 const migrations = [
   ['sent_to_telegram', 'ALTER TABLE news ADD COLUMN sent_to_telegram INTEGER DEFAULT 0'],
   ['sent_at', 'ALTER TABLE news ADD COLUMN sent_at TEXT'],
-  ['edited_text', 'ALTER TABLE news ADD COLUMN edited_text TEXT'],
-  ['edited_image_url', 'ALTER TABLE news ADD COLUMN edited_image_url TEXT'],
+  ['img_url', 'ALTER TABLE news ADD COLUMN img_url TEXT'],
 ];
 for (const [column, sql] of migrations) {
   if (!newsColumns.includes(column)) {
     db.exec(sql);
     logger.info(`DB migration applied: added column '${column}' to news`);
   }
+}
+
+// --- Одноразовая миграция данных: старые записи хранили сырой HTML в content и правки
+// в edited_text/edited_image_url. Переносить их в новую структуру (content = plain text, img_url
+// заполнен) и убрать старые колонки (включая hidden, которая больше не используется).
+if (newsColumns.includes('edited_text') || newsColumns.includes('edited_image_url') || newsColumns.includes('hidden')) {
+  const rows = db.prepare('SELECT * FROM news').all();
+  const update = db.prepare('UPDATE news SET content = @content, img_url = @imgUrl WHERE id = @id');
+
+  const migrate = db.transaction((allRows) => {
+    for (const row of allRows) {
+      const hasEditedText = newsColumns.includes('edited_text') && row.edited_text;
+      const hasEditedImage = newsColumns.includes('edited_image_url') && row.edited_image_url;
+
+      const newContent = hasEditedText
+        ? row.edited_text
+        : truncateText(htmlToPlainText(row.content || ''));
+
+      const newImgUrl = row.img_url
+        ? row.img_url
+        : (hasEditedImage ? row.edited_image_url : extractImageUrl(row.content || ''));
+
+      update.run({ content: newContent, imgUrl: newImgUrl || null, id: row.id });
+    }
+  });
+
+  migrate(rows);
+  logger.info(`Data migration: converted ${rows.length} rows to plain-text content + img_url`);
+
+  if (newsColumns.includes('edited_text')) db.exec('ALTER TABLE news DROP COLUMN edited_text');
+  if (newsColumns.includes('edited_image_url')) db.exec('ALTER TABLE news DROP COLUMN edited_image_url');
+  if (newsColumns.includes('hidden')) db.exec('ALTER TABLE news DROP COLUMN hidden');
+  logger.info('DB migration applied: dropped legacy columns edited_text/edited_image_url/hidden');
 }
 
 // --- Карта source_id -> { name, region, requiresProxy, enabled } из config/sources.json ---
@@ -91,8 +128,6 @@ app.use((req, res, next) => {
 });
 
 function enrichNews(news) {
-  const autoText = truncateText(htmlToPlainText(news.content));
-  const autoImage = extractImageUrl(news.content);
   const sourceInfo = getSourceInfo(news.source_id);
 
   return {
@@ -104,12 +139,8 @@ function enrichNews(news) {
     fetchedAt: news.fetched_at,
     sent_to_telegram: news.sent_to_telegram,
     sent_at: news.sent_at,
-    preview_text: news.edited_text !== null && news.edited_text !== undefined && news.edited_text !== ''
-      ? news.edited_text
-      : autoText,
-    image_url: news.edited_image_url !== null && news.edited_image_url !== undefined
-      ? news.edited_image_url
-      : autoImage,
+    preview_text: news.content || '',
+    image_url: news.img_url || null,
     source_name: sourceInfo.name,
     source_region: sourceInfo.region,
     source_requires_proxy: sourceInfo.requiresProxy,
@@ -153,8 +184,6 @@ app.get('/api/sources', (req, res) => {
     .prepare('SELECT DISTINCT source_id FROM news')
     .all();
 
-  // Скрываем из дропдауна источники, выключенные в config/sources.json (enabled: false),
-  // даже если в базе ещё остались их старые новости, спаршенные до отключения.
   const enriched = sources
     .map((s) => ({ id: s.source_id, ...getSourceInfo(s.source_id) }))
     .filter((s) => s.enabled)
@@ -176,11 +205,11 @@ app.patch('/api/news/:id', (req, res) => {
     params.title = title;
   }
   if (text !== undefined) {
-    updates.push('edited_text = @text');
+    updates.push('content = @text');
     params.text = text;
   }
   if (imageUrl !== undefined) {
-    updates.push('edited_image_url = @imageUrl');
+    updates.push('img_url = @imageUrl');
     params.imageUrl = imageUrl;
   }
 
@@ -225,8 +254,8 @@ app.post('/api/news/:id/send', async (req, res) => {
        sent_to_telegram = 1,
        sent_at = datetime('now'),
        title = @title,
-       edited_text = @text,
-       edited_image_url = @imageUrl
+       content = @text,
+       img_url = @imageUrl
      WHERE id = @id`
   ).run({ title: finalTitle, text: finalText, imageUrl: finalImageUrl || '', id });
 
