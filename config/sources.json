@@ -4,12 +4,16 @@
       "id": "R1",
       "name": "Московская городская епархия",
       "url": "https://moseparh.ru/cat/news/feed",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "high"
     },
     {
       "id": "R2",
       "name": "Коломенская епархия",
       "url": "https://mosmit.ru/news/rss/",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "medium",
       "enabled": false
     },
@@ -17,6 +21,8 @@
       "id": "R3",
       "name": "Балашихинская епархия",
       "url": "https://balep.ru/news/rss/",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "medium",
       "enabled": false
     },
@@ -24,69 +30,93 @@
       "id": "R4",
       "name": "Одинцовская епархия",
       "url": "https://odinceparh.ru/rss",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "medium"
     },
     {
       "id": "R5",
       "name": "Подольская епархия",
       "url": "https://podolskeparh.ru/feed/",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "medium"
     },
     {
       "id": "R6",
       "name": "Сергиево-Посадская епархия",
       "url": "https://eparhsp.ru/feed/",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "medium"
     },
     {
       "id": "R8",
       "name": "Выборгская епархия",
       "url": "https://eparchiya-viborg.ru/feed",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "medium"
     },
     {
       "id": "R9",
       "name": "Гатчинская епархия",
       "url": "https://gatchinaeparhia.ru/feed/",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "medium"
     },
     {
       "id": "R10",
       "name": "Тихвинская епархия",
       "url": "https://www.tikhvin-eparhia.ru/novosti?format=feed&type=rss",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "medium"
     },
     {
       "id": "R11",
       "name": "Нижегородская епархия",
       "url": "https://nne.ru/news/feed/",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "high"
     },
     {
       "id": "R12",
       "name": "Ростовская епархия",
       "url": "https://rostoveparhia.ru/feed/",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "high"
     },
     {
       "id": "R13",
       "name": "Екатеринбургская епархия",
       "url": "https://ekaterinburg-eparhia.ru/news/feed",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "high"
     },
     {
       "id": "R14",
       "name": "Казанская епархия",
       "url": "https://tatmitropolia.ru/rss.asp",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "high",
       "filters": {
-        "categories": ["Новости Казанской епархии"]
+        "categories": [
+          "Новости Казанской епархии"
+        ]
       }
     },
     {
       "id": "R15",
       "name": "Самарская епархия",
       "url": "https://samepar.ru/novosti/",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "high",
       "enabled": false
     },
@@ -94,6 +124,8 @@
       "id": "R16",
       "name": "Челябинская епархия",
       "url": "https://fetchrss.com/feed/1wwkViGyCE0R1wwkUY2Iq2eh.rss",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "low",
       "parser": "telegram",
       "proxy": true,
@@ -103,24 +135,32 @@
       "id": "R17",
       "name": "Омская епархия",
       "url": "https://omsk-eparhiya.ru/feed",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "high"
     },
     {
       "id": "R18",
       "name": "Новосибирская епархия",
       "url": "https://fetchrss.com/feed/1wwkViGyCE0R1wx2aM9yn37b.rss",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "high"
     },
     {
       "id": "R19",
       "name": "Красноярская епархия",
       "url": "https://kerpc.ru/feed",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "high"
     },
     {
       "id": "R20",
       "name": "Иркутская епархия",
       "url": "https://fetchrss.com/feed/1wwkViGyCE0R1wx2ps3fk071.rss",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "low",
       "parser": "telegram",
       "proxy": true,
@@ -130,56 +170,74 @@
       "id": "R21",
       "name": "Нижнетагильская епархия",
       "url": "https://tagileparhiya.ru/feed/",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "medium"
     },
     {
       "id": "R22",
       "name": "Пермская епархия",
       "url": "https://www.pravperm.ru/feed/",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "medium"
     },
     {
       "id": "R23",
       "name": "Енисейская епархия",
       "url": "https://xn--80aanabpeej0a2anfc0etig.xn--p1ai/feed/",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "medium"
     },
     {
       "id": "R24",
       "name": "Владикавказская епархия",
       "url": "https://blagos.ru/rss.xml",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "medium"
     },
     {
       "id": "R25",
       "name": "Патриархия",
       "url": "https://api.patriarchia.ru/v1/rss/news",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "high"
     },
     {
       "id": "R26",
       "name": "Православие•ру",
       "url": "https://pravoslavie.ru/xml/full.xml",
+      "jurisdiction": "ROC",
+      "country": "RU",
       "priority": "high",
       "filters": {
-        "categories": ["Новости"]
+        "categories": [
+          "Новости"
+        ]
       }
     },
     {
       "id": "UA3",
       "name": "Союз православных журналистов (СПЖ)",
       "url": "https://spzh.eu/rss",
+      "jurisdiction": "UOC",
+      "country": "UA",
+      "region": "Украина",
       "priority": "high",
-      "proxy": true,
-      "region": "Украина"
+      "proxy": true
     },
     {
       "id": "MD1",
       "name": "Митрополия Молдовы",
       "url": "https://mitropolia.md/ru/feed/",
+      "jurisdiction": "Moldova_ROC",
+      "country": "MD",
+      "region": "Молдова",
       "priority": "high",
       "proxy": true,
-      "region": "Молдова",
       "enabled": false
     }
   ]
