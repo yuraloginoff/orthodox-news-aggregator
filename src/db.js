@@ -24,15 +24,28 @@ function initDb() {
       published_at TEXT,
       content TEXT,
       img_url TEXT,
+      jurisdiction TEXT,
+      country TEXT,
       fetched_at TEXT
     )
   `);
+
+  const columns = db.prepare("PRAGMA table_info(news)").all().map((c) => c.name);
+  if (!columns.includes('img_url')) {
+    db.exec('ALTER TABLE news ADD COLUMN img_url TEXT');
+  }
+  if (!columns.includes('jurisdiction')) {
+    db.exec('ALTER TABLE news ADD COLUMN jurisdiction TEXT');
+  }
+  if (!columns.includes('country')) {
+    db.exec('ALTER TABLE news ADD COLUMN country TEXT');
+  }
 }
 
 function insertNews(item) {
   const stmt = db.prepare(`
-    INSERT OR IGNORE INTO news (source_id, title, link, published_at, content, img_url, fetched_at)
-    VALUES (@sourceId, @title, @link, @pubDate, @description, @imgUrl, @fetchedAt)
+    INSERT OR IGNORE INTO news (source_id, title, link, published_at, content, img_url, jurisdiction, country, fetched_at)
+    VALUES (@sourceId, @title, @link, @pubDate, @description, @imgUrl, @jurisdiction, @country, @fetchedAt)
   `);
   const result = stmt.run({
     sourceId: item.sourceId,
@@ -41,6 +54,8 @@ function insertNews(item) {
     pubDate: item.pubDate,
     description: item.description,
     imgUrl: item.imgUrl || null,
+    jurisdiction: item.jurisdiction || null,
+    country: item.country || null,
     fetchedAt: new Date().toISOString()
   });
   return result.changes > 0;
@@ -59,4 +74,4 @@ function closeDb() {
   db.close();
 }
 
-export { db, initDb, insertNews, getNewsCount, getAllNews, closeDb };
+export { initDb, insertNews, getNewsCount, getAllNews, closeDb };

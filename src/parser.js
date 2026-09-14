@@ -212,6 +212,8 @@ function normalizeItem(item, source) {
     pubDate: safeParseDate(pubDate),
     description: plainText || '',
     imgUrl: imgUrl || null,
+    jurisdiction: source.jurisdiction || null,
+    country: source.country || null,
     categories: category,
     priority: source.priority || 'medium'
   };
