@@ -36,7 +36,8 @@ async function loadSources() {
   sourceFilterEl.value = state.source;
 }
 
-async function loadNews() {
+async function loadNews({ preserveScroll = false } = {}) {
+  const scrollY = preserveScroll ? window.scrollY : null;
   newsListEl.innerHTML = '<p class="loading">Загрузка...</p>';
 
   const params = new URLSearchParams({
@@ -62,6 +63,10 @@ async function loadNews() {
   pageInfoEl.textContent = `Стр. ${data.page} из ${totalPages} (всего: ${data.total})`;
 
   attachHandlers();
+
+  if (preserveScroll) {
+    requestAnimationFrame(() => window.scrollTo(0, scrollY));
+  }
 }
 
 function renderNewsCard(news) {
@@ -160,7 +165,7 @@ function attachHandlers() {
       });
 
       if (res.ok) {
-        loadNews();
+        await loadNews({ preserveScroll: true });
       } else {
         const err = await res.json();
         alert('Ошибка отправки: ' + err.error);
@@ -189,7 +194,7 @@ function attachHandlers() {
       const res = await fetch(`/api/news/${btn.dataset.id}`, { method: 'DELETE' });
 
       if (res.ok) {
-        loadNews();
+        await loadNews({ preserveScroll: true });
       } else {
         alert('Не удалось удалить новость');
         btn.disabled = false;
