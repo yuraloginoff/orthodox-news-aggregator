@@ -74,4 +74,4 @@ function closeDb() {
   db.close();
 }
 
-export { initDb, insertNews, getNewsCount, getAllNews, closeDb };
+export { db, initDb, insertNews, getNewsCount, getAllNews, closeDb };
