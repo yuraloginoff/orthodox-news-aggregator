@@ -229,6 +229,39 @@ app.patch('/api/news/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// app.post('/api/news/:id/send', async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { title, text, imageUrl } = req.body;
+//     const news = db.prepare('SELECT * FROM news WHERE id = ?').get(id);
+//     if (!news) return res.status(404).json({ error: 'News not found' });
+
+//     const finalTitle = title ?? news.title;
+//     const finalText = text ?? news.content;
+//     const finalImageUrl = imageUrl ?? news.img_url;
+
+//     await sendNewsToTelegram({
+//       ...news,
+//       title: finalTitle,
+//       content: finalText,
+//       img_url: finalImageUrl,
+//     });
+
+//     db.prepare('UPDATE news SET title = ?, content = ?, img_url = ?, sent_to_telegram = 1, sent_at = ? WHERE id = ?').run(
+//       finalTitle,
+//       finalText,
+//       finalImageUrl || null,
+//       new Date().toISOString(),
+//       id
+//     );
+
+//     res.json({ ok: true });
+//   } catch (err) {
+//     logger.error('Telegram send error', { error: err.message });
+//     res.status(500).json({ error: err.message });
+//   }
+// });
+
 app.post('/api/news/:id/send', async (req, res) => {
   try {
     const { id } = req.params;
@@ -239,12 +272,17 @@ app.post('/api/news/:id/send', async (req, res) => {
     const finalTitle = title ?? news.title;
     const finalText = text ?? news.content;
     const finalImageUrl = imageUrl ?? news.img_url;
+    const sourceInfo = getSourceInfo(news.source_id);
 
     await sendNewsToTelegram({
-      ...news,
+      id: news.id,
       title: finalTitle,
-      content: finalText,
-      img_url: finalImageUrl,
+      text: finalText,
+      link: news.link,
+      sourceName: sourceInfo.name,
+      sourceRegion: sourceInfo.region,
+      imageUrl: finalImageUrl || null,
+      imageRequiresProxy: sourceInfo.requiresProxy,
     });
 
     db.prepare('UPDATE news SET title = ?, content = ?, img_url = ?, sent_to_telegram = 1, sent_at = ? WHERE id = ?').run(
@@ -261,6 +299,7 @@ app.post('/api/news/:id/send', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 app.delete('/api/news/:id', (req, res) => {
   const { id } = req.params;
