@@ -148,7 +148,7 @@ function enrichNews(news) {
 }
 
 app.get('/api/news', (req, res) => {
-  const { source, status, page = 1, limit = 30 } = req.query;
+  const { source, status, date, page = 1, limit = 30 } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
 
   let where = [];
@@ -162,6 +162,16 @@ app.get('/api/news', (req, res) => {
     where.push('sent_to_telegram = 1');
   } else if (status === 'unsent') {
     where.push('sent_to_telegram = 0');
+  }
+  if (date === 'today' || date === 'yesterday') {
+    const now = new Date();
+    const dayOffset = date === 'yesterday' ? 1 : 0;
+    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOffset);
+    const start = target.toISOString();
+    const end = new Date(target.getTime() + 24 * 60 * 60 * 1000).toISOString();
+    where.push('published_at >= @dateStart AND published_at < @dateEnd');
+    params.dateStart = start;
+    params.dateEnd = end;
   }
 
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -198,82 +208,64 @@ app.patch('/api/news/:id', (req, res) => {
   const { title, text, imageUrl } = req.body;
 
   const updates = [];
-  const params = {};
+  const params = { id };
 
   if (title !== undefined) {
     updates.push('title = @title');
     params.title = title;
   }
   if (text !== undefined) {
-    updates.push('content = @text');
-    params.text = text;
+    updates.push('content = @content');
+    params.content = text;
   }
   if (imageUrl !== undefined) {
-    updates.push('img_url = @imageUrl');
-    params.imageUrl = imageUrl;
+    updates.push('img_url = @imgUrl');
+    params.imgUrl = imageUrl || null;
   }
 
-  if (updates.length === 0) {
-    return res.status(400).json({ error: 'Нечего обновлять' });
-  }
+  if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
-  db.prepare(`UPDATE news SET ${updates.join(', ')} WHERE id = @id`).run({ ...params, id });
+  db.prepare(`UPDATE news SET ${updates.join(', ')} WHERE id = @id`).run(params);
   res.json({ ok: true });
 });
 
 app.post('/api/news/:id/send', async (req, res) => {
-  const { id } = req.params;
-  const { title, text, imageUrl } = req.body;
+  try {
+    const { id } = req.params;
+    const { title, text, imageUrl } = req.body;
+    const news = db.prepare('SELECT * FROM news WHERE id = ?').get(id);
+    if (!news) return res.status(404).json({ error: 'News not found' });
 
-  const rawNews = db.prepare('SELECT * FROM news WHERE id = ?').get(id);
-  if (!rawNews) return res.status(404).json({ error: 'News not found' });
+    const finalTitle = title ?? news.title;
+    const finalText = text ?? news.content;
+    const finalImageUrl = imageUrl ?? news.img_url;
 
-  const news = enrichNews(rawNews);
+    await sendNewsToTelegram({
+      ...news,
+      title: finalTitle,
+      content: finalText,
+      img_url: finalImageUrl,
+    });
 
-  const finalTitle = title !== undefined ? title : news.title;
-  const finalText = text !== undefined ? text : news.preview_text;
-  const finalImageUrl = imageUrl !== undefined ? imageUrl : news.image_url;
+    db.prepare('UPDATE news SET title = ?, content = ?, img_url = ?, sent_to_telegram = 1, sent_at = ? WHERE id = ?').run(
+      finalTitle,
+      finalText,
+      finalImageUrl || null,
+      new Date().toISOString(),
+      id
+    );
 
-  const result = await sendNewsToTelegram({
-    id: news.id,
-    title: finalTitle,
-    text: finalText,
-    link: news.link,
-    sourceName: news.source_name,
-    sourceRegion: news.source_region,
-    imageUrl: finalImageUrl || null,
-    imageRequiresProxy: news.source_requires_proxy,
-  });
-
-  if (!result.ok) {
-    return res.status(502).json({ error: result.error });
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error('Telegram send error', { error: err.message });
+    res.status(500).json({ error: err.message });
   }
-
-  db.prepare(
-    `UPDATE news SET
-       sent_to_telegram = 1,
-       sent_at = datetime('now'),
-       title = @title,
-       content = @text,
-       img_url = @imageUrl
-     WHERE id = @id`
-  ).run({ title: finalTitle, text: finalText, imageUrl: finalImageUrl || '', id });
-
-  res.json({ ok: true });
 });
 
 app.delete('/api/news/:id', (req, res) => {
   const { id } = req.params;
-  const result = db.prepare('DELETE FROM news WHERE id = ?').run(id);
-
-  if (result.changes === 0) {
-    return res.status(404).json({ error: 'News not found' });
-  }
-
-  logger.info('News deleted', { newsId: id });
+  db.prepare('DELETE FROM news WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
-app.listen(PORT, () => {
-  logger.info(`Admin server started on http://localhost:${PORT}`);
-});
+app.listen(PORT, () => logger.info(`Admin server started on http://localhost:${PORT}`));

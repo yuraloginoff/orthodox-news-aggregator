@@ -1,20 +1,39 @@
 // public/admin.js
 // Vanilla JS фронтенд админки — без фреймворков и сборщиков.
 
-let state = { page: 1, limit: 20, source: '', status: 'unsent' };
+const urlParams = new URLSearchParams(window.location.search);
+let state = {
+  page: Number(urlParams.get('page')) || 1,
+  limit: 20,
+  source: urlParams.get('source') || '',
+  status: urlParams.get('status') ?? 'unsent',
+  date: urlParams.get('date') || '',
+};
 
 const newsListEl = document.getElementById('newsList');
 const sourceFilterEl = document.getElementById('sourceFilter');
 const statusFilterEl = document.getElementById('statusFilter');
+const dateFilterEl = document.getElementById('dateFilter');
 const pageInfoEl = document.getElementById('pageInfo');
+
+function syncUrl() {
+  const params = new URLSearchParams();
+  if (state.source) params.set('source', state.source);
+  if (state.status !== 'unsent') params.set('status', state.status);
+  if (state.date) params.set('date', state.date);
+  if (state.page > 1) params.set('page', String(state.page));
+  const query = params.toString();
+  const newUrl = window.location.pathname + (query ? `?${query}` : '');
+  history.replaceState(null, '', newUrl);
+}
 
 async function loadSources() {
   const res = await fetch('/api/sources');
   const sources = await res.json();
-  // /api/sources возвращает список, уже отсортированный по алфавиту на бэкенде.
   sourceFilterEl.innerHTML =
     '<option value="">Все источники</option>' +
     sources.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  sourceFilterEl.value = state.source;
 }
 
 async function loadNews() {
@@ -25,7 +44,10 @@ async function loadNews() {
     limit: state.limit,
     source: state.source,
     status: state.status,
+    date: state.date,
   });
+
+  syncUrl();
 
   const res = await fetch(`/api/news?${params}`);
   const data = await res.json();
@@ -189,6 +211,12 @@ statusFilterEl.addEventListener('change', (e) => {
   loadNews();
 });
 
+dateFilterEl.addEventListener('change', (e) => {
+  state.date = e.target.value;
+  state.page = 1;
+  loadNews();
+});
+
 document.getElementById('refreshBtn').addEventListener('click', loadNews);
 
 document.getElementById('prevPage').addEventListener('click', () => {
@@ -202,6 +230,9 @@ document.getElementById('nextPage').addEventListener('click', () => {
   state.page += 1;
   loadNews();
 });
+
+statusFilterEl.value = state.status;
+dateFilterEl.value = state.date;
 
 loadSources();
 loadNews();
