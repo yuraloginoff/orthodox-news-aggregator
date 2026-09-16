@@ -1,77 +1,74 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
+// src/db.js
+// Подключение к Postgres (Neon) через пул соединений `pg`.
+// Раньше здесь был better-sqlite3 (синхронный, локальный файл) — теперь все функции
+// асинхронные (async/await), т.к. pg работает по сети. Используем DATABASE_URL
+// (pooled-соединение через pgbouncer, рекомендуется Neon для serverless и для
+// долгоживущих процессов вроде парсера/админки).
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.join(__dirname, '..', 'data');
+import { Pool } from 'pg';
+import 'dotenv/config';
 
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
-const dbPath = path.join(dataDir, 'news.db');
-
-const db = new Database(dbPath);
-
-function initDb() {
-  db.exec(`
+async function initDb() {
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS news (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       source_id TEXT NOT NULL,
       title TEXT,
       link TEXT UNIQUE,
-      published_at TEXT,
+      published_at TIMESTAMPTZ,
       content TEXT,
       img_url TEXT,
       jurisdiction TEXT,
       country TEXT,
-      fetched_at TEXT
+      sent_to_telegram INTEGER DEFAULT 0,
+      sent_at TIMESTAMPTZ,
+      fetched_at TIMESTAMPTZ DEFAULT now()
     )
   `);
 
-  const columns = db.prepare("PRAGMA table_info(news)").all().map((c) => c.name);
-  if (!columns.includes('img_url')) {
-    db.exec('ALTER TABLE news ADD COLUMN img_url TEXT');
-  }
-  if (!columns.includes('jurisdiction')) {
-    db.exec('ALTER TABLE news ADD COLUMN jurisdiction TEXT');
-  }
-  if (!columns.includes('country')) {
-    db.exec('ALTER TABLE news ADD COLUMN country TEXT');
-  }
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_news_published_at ON news (published_at DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_news_source_id ON news (source_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_news_jurisdiction ON news (jurisdiction)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_news_country ON news (country)');
 }
 
-function insertNews(item) {
-  const stmt = db.prepare(`
-    INSERT OR IGNORE INTO news (source_id, title, link, published_at, content, img_url, jurisdiction, country, fetched_at)
-    VALUES (@sourceId, @title, @link, @pubDate, @description, @imgUrl, @jurisdiction, @country, @fetchedAt)
-  `);
-  const result = stmt.run({
-    sourceId: item.sourceId,
-    title: item.title,
-    link: item.link,
-    pubDate: item.pubDate,
-    description: item.description,
-    imgUrl: item.imgUrl || null,
-    jurisdiction: item.jurisdiction || null,
-    country: item.country || null,
-    fetchedAt: new Date().toISOString()
-  });
-  return result.changes > 0;
+async function insertNews(item) {
+  const result = await pool.query(
+    `INSERT INTO news (source_id, title, link, published_at, content, img_url, jurisdiction, country, fetched_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+     ON CONFLICT (link) DO NOTHING
+     RETURNING id`,
+    [
+      item.sourceId,
+      item.title,
+      item.link,
+      item.pubDate,
+      item.description,
+      item.imgUrl || null,
+      item.jurisdiction || null,
+      item.country || null,
+    ]
+  );
+  return result.rowCount > 0;
 }
 
-function getNewsCount() {
-  const row = db.prepare('SELECT COUNT(*) as count FROM news').get();
-  return row.count;
+async function getNewsCount() {
+  const result = await pool.query('SELECT COUNT(*) as count FROM news');
+  return Number(result.rows[0].count);
 }
 
-function getAllNews() {
-  return db.prepare('SELECT * FROM news ORDER BY published_at DESC').all();
+async function getAllNews() {
+  const result = await pool.query('SELECT * FROM news ORDER BY published_at DESC');
+  return result.rows;
 }
 
-function closeDb() {
-  db.close();
+async function closeDb() {
+  await pool.end();
 }
 
-export { db, initDb, insertNews, getNewsCount, getAllNews, closeDb };
+export { pool, initDb, insertNews, getNewsCount, getAllNews, closeDb };
