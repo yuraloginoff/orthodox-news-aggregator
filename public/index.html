@@ -1,0 +1,87 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Глас — православные новости</title>
+<meta name="description" content="Единая лента новостей православных епархий, патриархии и церковных СМИ.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400..700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="normalize.css">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <a href="#main" class="sr-only">Перейти к содержимому</a>
+
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a href="/" class="logo" aria-label="Глас — на главную">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <path d="M16 3 L16 29 M8 10 L24 10" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/>
+          <circle cx="16" cy="6" r="2.25" fill="currentColor"/>
+        </svg>
+        <span>Глас</span>
+      </a>
+      <button id="themeToggle" class="theme-toggle" aria-label="Переключить тему" type="button"></button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <h1>Православные новости <span>в одной ленте</span></h1>
+      <p>Патриархия, епархии, церковные СМИ — свежие новости за 1–2 минуты. Полный текст открывается на сайте первоисточника.</p>
+    </section>
+
+    <section class="filters" aria-label="Фильтры новостей">
+      <div class="filters__row">
+        <div class="filter-group">
+          <label for="jurisdictionFilter">Юрисдикция</label>
+          <select id="jurisdictionFilter">
+            <option value="">Все</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="countryFilter">Страна</label>
+          <select id="countryFilter">
+            <option value="">Все</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="dateFilter">Период</label>
+          <select id="dateFilter">
+            <option value="">Все новости</option>
+            <option value="today">Сегодня</option>
+            <option value="yesterday">Вчера</option>
+          </select>
+        </div>
+        <div class="filter-group filter-group--search">
+          <label for="searchInput">Поиск по заголовку</label>
+          <input id="searchInput" type="search" placeholder="Например: Патриархия...">
+        </div>
+      </div>
+    </section>
+
+    <section class="news-feed" aria-live="polite">
+      <div id="newsList" class="news-grid">
+        <div class="skeleton-card"><div class="skeleton skeleton-heading"></div><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text"></div></div>
+        <div class="skeleton-card"><div class="skeleton skeleton-heading"></div><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text"></div></div>
+        <div class="skeleton-card"><div class="skeleton skeleton-heading"></div><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text"></div></div>
+      </div>
+    </section>
+
+    <footer class="pager">
+      <button id="prevPage" type="button">&larr; Назад</button>
+      <span id="pageInfo"></span>
+      <button id="nextPage" type="button">Вперёд &rarr;</button>
+    </footer>
+  </main>
+
+  <footer class="site-footer">
+    <p>Глас — агрегатор православных новостей. Заголовки и краткие анонсы; полные тексты — у первоисточников.</p>
+  </footer>
+
+  <script src="site.js"></script>
+</body>
+</html>
