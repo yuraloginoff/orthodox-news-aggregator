@@ -1,22 +1,21 @@
 // src/admin.js
-// Легкий Express-сервер для админки «Glas».
-// Позволяет просматривать спарсенные новости, редактировать заголовок, текст и
-// картинку перед отправкой, отправлять новость в Telegram-канал, удалять ненужные.
+// Express-сервер «Глас»: админка для модерации новостей + публичный read-only API
+// для сайта. Использует Postgres (Neon) через пул `pg` — все обращения к БД асинхронные.
 //
-// title, content и img_url редактируются и сохраняются напрямую в те же колонки,
-// без отдельных edited_* полей. content в базе — это готовый plain text для Telegram
-// (конвертируется из HTML в parser.js на этапе сохранения, а не при каждой отдаче через API).
+// title, content и img_url редактируются и сохраняются напрямую в те же колонки.
+// content в базе — готовый plain text (конвертируется из HTML в parser.js при сохранении).
 //
-// Использует именованный экспорт `db` из src/db.js и default export `logger` из src/logger.js.
+// Публичный API (/api/public/news) отдаёт урезанный набор полей без возможности
+// редактирования — это то, что читает публичный сайт (лента с фильтрами).
 
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { db } from './db.js';
+import { pool, initDb } from './db.js';
 import { sendNewsToTelegram } from './telegram.js';
-import { decodeHtmlEntities, htmlToPlainText, truncateText, extractImageUrl } from './contentUtils.js';
+import { decodeHtmlEntities } from './contentUtils.js';
 import logger from './logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -24,52 +23,7 @@ const app = express();
 const PORT = process.env.ADMIN_PORT || 3001;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
-const newsColumns = db.prepare("PRAGMA table_info(news)").all().map((c) => c.name);
-
-const migrations = [
-  ['sent_to_telegram', 'ALTER TABLE news ADD COLUMN sent_to_telegram INTEGER DEFAULT 0'],
-  ['sent_at', 'ALTER TABLE news ADD COLUMN sent_at TEXT'],
-  ['img_url', 'ALTER TABLE news ADD COLUMN img_url TEXT'],
-];
-for (const [column, sql] of migrations) {
-  if (!newsColumns.includes(column)) {
-    db.exec(sql);
-    logger.info(`DB migration applied: added column '${column}' to news`);
-  }
-}
-
-// --- Одноразовая миграция данных: старые записи хранили сырой HTML в content и правки
-// в edited_text/edited_image_url. Переносить их в новую структуру (content = plain text, img_url
-// заполнен) и убрать старые колонки (включая hidden, которая больше не используется).
-if (newsColumns.includes('edited_text') || newsColumns.includes('edited_image_url') || newsColumns.includes('hidden')) {
-  const rows = db.prepare('SELECT * FROM news').all();
-  const update = db.prepare('UPDATE news SET content = @content, img_url = @imgUrl WHERE id = @id');
-
-  const migrate = db.transaction((allRows) => {
-    for (const row of allRows) {
-      const hasEditedText = newsColumns.includes('edited_text') && row.edited_text;
-      const hasEditedImage = newsColumns.includes('edited_image_url') && row.edited_image_url;
-
-      const newContent = hasEditedText
-        ? row.edited_text
-        : truncateText(htmlToPlainText(row.content || ''));
-
-      const newImgUrl = row.img_url
-        ? row.img_url
-        : (hasEditedImage ? row.edited_image_url : extractImageUrl(row.content || ''));
-
-      update.run({ content: newContent, imgUrl: newImgUrl || null, id: row.id });
-    }
-  });
-
-  migrate(rows);
-  logger.info(`Data migration: converted ${rows.length} rows to plain-text content + img_url`);
-
-  if (newsColumns.includes('edited_text')) db.exec('ALTER TABLE news DROP COLUMN edited_text');
-  if (newsColumns.includes('edited_image_url')) db.exec('ALTER TABLE news DROP COLUMN edited_image_url');
-  if (newsColumns.includes('hidden')) db.exec('ALTER TABLE news DROP COLUMN hidden');
-  logger.info('DB migration applied: dropped legacy columns edited_text/edited_image_url/hidden');
-}
+await initDb();
 
 // --- Карта source_id -> { name, region, requiresProxy, enabled } из config/sources.json ---
 const sourcesConfigPath = path.join(__dirname, '..', 'config', 'sources.json');
@@ -107,8 +61,11 @@ function getSourceInfo(sourceId) {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+// --- Basic Auth только для админских путей (/admin.html, /api/news, /api/sources) ---
+// Публичный сайт (/, /api/public/*) остаётся открытым без пароля.
 app.use((req, res, next) => {
-  if (!ADMIN_PASSWORD) return next();
+  const isAdminRoute = req.path.startsWith('/admin') || (req.path.startsWith('/api/') && !req.path.startsWith('/api/public/'));
+  if (!isAdminRoute || !ADMIN_PASSWORD) return next();
 
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Basic ')) {
@@ -141,60 +98,73 @@ function enrichNews(news) {
     sent_at: news.sent_at,
     preview_text: news.content || '',
     image_url: news.img_url || null,
+    jurisdiction: news.jurisdiction,
+    country: news.country,
     source_name: sourceInfo.name,
     source_region: sourceInfo.region,
     source_requires_proxy: sourceInfo.requiresProxy,
   };
 }
 
-app.get('/api/news', (req, res) => {
+function buildDateRange(date) {
+  if (date !== 'today' && date !== 'yesterday') return null;
+
+  const now = new Date();
+  const dayOffset = date === 'yesterday' ? 1 : 0;
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOffset);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+// ===================== АДМИНСКИЕ РОУТЫ =====================
+
+app.get('/api/news', async (req, res) => {
   const { source, status, date, page = 1, limit = 30 } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
 
-  let where = [];
-  let params = {};
+  const where = [];
+  const params = [];
 
   if (source) {
-    where.push('source_id = @source');
-    params.source = source;
+    params.push(source);
+    where.push(`source_id = $${params.length}`);
   }
   if (status === 'sent') {
     where.push('sent_to_telegram = 1');
   } else if (status === 'unsent') {
     where.push('sent_to_telegram = 0');
   }
-  if (date === 'today' || date === 'yesterday') {
-    const now = new Date();
-    const dayOffset = date === 'yesterday' ? 1 : 0;
-    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOffset);
-    const start = target.toISOString();
-    const end = new Date(target.getTime() + 24 * 60 * 60 * 1000).toISOString();
-    where.push('published_at >= @dateStart AND published_at < @dateEnd');
-    params.dateStart = start;
-    params.dateEnd = end;
+  const range = buildDateRange(date);
+  if (range) {
+    params.push(range.start);
+    where.push(`published_at >= $${params.length}`);
+    params.push(range.end);
+    where.push(`published_at < $${params.length}`);
   }
 
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-  const news = db
-    .prepare(
-      `SELECT * FROM news ${whereClause} ORDER BY published_at DESC LIMIT @limit OFFSET @offset`
-    )
-    .all({ ...params, limit: Number(limit), offset });
+  const listParams = [...params, Number(limit), offset];
+  const newsResult = await pool.query(
+    `SELECT * FROM news ${whereClause} ORDER BY published_at DESC LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+    listParams
+  );
 
-  const total = db
-    .prepare(`SELECT COUNT(*) as count FROM news ${whereClause}`)
-    .get(params).count;
+  const countResult = await pool.query(`SELECT COUNT(*) as count FROM news ${whereClause}`, params);
 
-  res.json({ news: news.map(enrichNews), total, page: Number(page), limit: Number(limit) });
+  res.json({
+    news: newsResult.rows.map(enrichNews),
+    total: Number(countResult.rows[0].count),
+    page: Number(page),
+    limit: Number(limit),
+  });
 });
 
-app.get('/api/sources', (req, res) => {
-  const sources = db
-    .prepare('SELECT DISTINCT source_id FROM news')
-    .all();
+app.get('/api/sources', async (req, res) => {
+  const result = await pool.query('SELECT DISTINCT source_id FROM news');
 
-  const enriched = sources
+  const enriched = result.rows
     .map((s) => ({ id: s.source_id, ...getSourceInfo(s.source_id) }))
     .filter((s) => s.enabled)
     .map((s) => ({ id: s.id, name: s.name }))
@@ -203,70 +173,39 @@ app.get('/api/sources', (req, res) => {
   res.json(enriched);
 });
 
-app.patch('/api/news/:id', (req, res) => {
+app.patch('/api/news/:id', async (req, res) => {
   const { id } = req.params;
   const { title, text, imageUrl } = req.body;
 
   const updates = [];
-  const params = { id };
+  const params = [];
 
   if (title !== undefined) {
-    updates.push('title = @title');
-    params.title = title;
+    params.push(title);
+    updates.push(`title = $${params.length}`);
   }
   if (text !== undefined) {
-    updates.push('content = @content');
-    params.content = text;
+    params.push(text);
+    updates.push(`content = $${params.length}`);
   }
   if (imageUrl !== undefined) {
-    updates.push('img_url = @imgUrl');
-    params.imgUrl = imageUrl || null;
+    params.push(imageUrl || null);
+    updates.push(`img_url = $${params.length}`);
   }
 
   if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
-  db.prepare(`UPDATE news SET ${updates.join(', ')} WHERE id = @id`).run(params);
+  params.push(id);
+  await pool.query(`UPDATE news SET ${updates.join(', ')} WHERE id = $${params.length}`, params);
   res.json({ ok: true });
 });
-
-// app.post('/api/news/:id/send', async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { title, text, imageUrl } = req.body;
-//     const news = db.prepare('SELECT * FROM news WHERE id = ?').get(id);
-//     if (!news) return res.status(404).json({ error: 'News not found' });
-
-//     const finalTitle = title ?? news.title;
-//     const finalText = text ?? news.content;
-//     const finalImageUrl = imageUrl ?? news.img_url;
-
-//     await sendNewsToTelegram({
-//       ...news,
-//       title: finalTitle,
-//       content: finalText,
-//       img_url: finalImageUrl,
-//     });
-
-//     db.prepare('UPDATE news SET title = ?, content = ?, img_url = ?, sent_to_telegram = 1, sent_at = ? WHERE id = ?').run(
-//       finalTitle,
-//       finalText,
-//       finalImageUrl || null,
-//       new Date().toISOString(),
-//       id
-//     );
-
-//     res.json({ ok: true });
-//   } catch (err) {
-//     logger.error('Telegram send error', { error: err.message });
-//     res.status(500).json({ error: err.message });
-//   }
-// });
 
 app.post('/api/news/:id/send', async (req, res) => {
   try {
     const { id } = req.params;
     const { title, text, imageUrl } = req.body;
-    const news = db.prepare('SELECT * FROM news WHERE id = ?').get(id);
+    const result = await pool.query('SELECT * FROM news WHERE id = $1', [id]);
+    const news = result.rows[0];
     if (!news) return res.status(404).json({ error: 'News not found' });
 
     const finalTitle = title ?? news.title;
@@ -285,12 +224,9 @@ app.post('/api/news/:id/send', async (req, res) => {
       imageRequiresProxy: sourceInfo.requiresProxy,
     });
 
-    db.prepare('UPDATE news SET title = ?, content = ?, img_url = ?, sent_to_telegram = 1, sent_at = ? WHERE id = ?').run(
-      finalTitle,
-      finalText,
-      finalImageUrl || null,
-      new Date().toISOString(),
-      id
+    await pool.query(
+      'UPDATE news SET title = $1, content = $2, img_url = $3, sent_to_telegram = 1, sent_at = now() WHERE id = $4',
+      [finalTitle, finalText, finalImageUrl || null, id]
     );
 
     res.json({ ok: true });
@@ -300,11 +236,86 @@ app.post('/api/news/:id/send', async (req, res) => {
   }
 });
 
-
-app.delete('/api/news/:id', (req, res) => {
+app.delete('/api/news/:id', async (req, res) => {
   const { id } = req.params;
-  db.prepare('DELETE FROM news WHERE id = ?').run(req.params.id);
+  await pool.query('DELETE FROM news WHERE id = $1', [id]);
   res.json({ ok: true });
+});
+
+// ===================== ПУБЛИЧНЫЙ API (для сайта, без авторизации) =====================
+// Только чтение. Отдаёт заголовок, краткий текст, ссылку на оригинал, источник,
+// юрисдикцию/страну и дату — без служебных полей (sent_to_telegram, редактирование и т.п.)
+
+function enrichPublicNews(news) {
+  const sourceInfo = getSourceInfo(news.source_id);
+
+  return {
+    id: news.id,
+    title: decodeHtmlEntities(news.title),
+    summary: news.content || '',
+    link: news.link,
+    publishedAt: news.published_at,
+    sourceName: sourceInfo.name,
+    sourceRegion: sourceInfo.region,
+    jurisdiction: news.jurisdiction,
+    country: news.country,
+  };
+}
+
+app.get('/api/public/news', async (req, res) => {
+  const { jurisdiction, country, date, q, page = 1, limit = 30 } = req.query;
+  const offset = (Number(page) - 1) * Number(limit);
+
+  const where = [];
+  const params = [];
+
+  if (jurisdiction) {
+    params.push(jurisdiction);
+    where.push(`jurisdiction = $${params.length}`);
+  }
+  if (country) {
+    params.push(country);
+    where.push(`country = $${params.length}`);
+  }
+  if (q) {
+    params.push(`%${q}%`);
+    where.push(`title ILIKE $${params.length}`);
+  }
+  const range = buildDateRange(date);
+  if (range) {
+    params.push(range.start);
+    where.push(`published_at >= $${params.length}`);
+    params.push(range.end);
+    where.push(`published_at < $${params.length}`);
+  }
+
+  const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const listParams = [...params, Number(limit), offset];
+  const newsResult = await pool.query(
+    `SELECT * FROM news ${whereClause} ORDER BY published_at DESC LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+    listParams
+  );
+
+  const countResult = await pool.query(`SELECT COUNT(*) as count FROM news ${whereClause}`, params);
+
+  res.json({
+    news: newsResult.rows.map(enrichPublicNews),
+    total: Number(countResult.rows[0].count),
+    page: Number(page),
+    limit: Number(limit),
+  });
+});
+
+app.get('/api/public/filters', async (req, res) => {
+  const result = await pool.query(
+    'SELECT DISTINCT jurisdiction, country FROM news WHERE jurisdiction IS NOT NULL'
+  );
+
+  const jurisdictions = [...new Set(result.rows.map((r) => r.jurisdiction))].sort();
+  const countries = [...new Set(result.rows.map((r) => r.country))].sort();
+
+  res.json({ jurisdictions, countries });
 });
 
 app.listen(PORT, () => logger.info(`Admin server started on http://localhost:${PORT}`));
