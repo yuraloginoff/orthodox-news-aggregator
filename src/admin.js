@@ -7,14 +7,14 @@
 // без отдельных edited_* полей. content в базе — это готовый plain text для Telegram
 // (конвертируется из HTML в parser.js на этапе сохранения, а не при каждой отдаче через API).
 //
-// Использует именованный экспорт `db` из src/db.js и default export `logger` из src/logger.js.
+// PostgreSQL: использует именованный экспорт `pool` из src/db.js. Все запросы асинхронные.
 
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { db } from './db.js';
+import { pool } from './db.js';
 import { sendNewsToTelegram } from './telegram.js';
 import { decodeHtmlEntities, htmlToPlainText, truncateText, extractImageUrl } from './contentUtils.js';
 import logger from './logger.js';
@@ -24,31 +24,42 @@ const app = express();
 const PORT = process.env.ADMIN_PORT || 3001;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
-const newsColumns = db.prepare("PRAGMA table_info(news)").all().map((c) => c.name);
-
-const migrations = [
-  ['sent_to_telegram', 'ALTER TABLE news ADD COLUMN sent_to_telegram INTEGER DEFAULT 0'],
-  ['sent_at', 'ALTER TABLE news ADD COLUMN sent_at TEXT'],
-  ['img_url', 'ALTER TABLE news ADD COLUMN img_url TEXT'],
-];
-for (const [column, sql] of migrations) {
-  if (!newsColumns.includes(column)) {
-    db.exec(sql);
-    logger.info(`DB migration applied: added column '${column}' to news`);
-  }
+async function getNewsColumns() {
+  const { rows } = await pool.query(
+    "SELECT column_name FROM information_schema.columns WHERE table_name = 'news'"
+  );
+  return rows.map((r) => r.column_name);
 }
 
-// --- Одноразовая миграция данных: старые записи хранили сырой HTML в content и правки
-// в edited_text/edited_image_url. Переносить их в новую структуру (content = plain text, img_url
-// заполнен) и убрать старые колонки (включая hidden, которая больше не используется.
-if (newsColumns.includes('edited_text') || newsColumns.includes('edited_image_url') || newsColumns.includes('hidden')) {
-  const rows = db.prepare('SELECT * FROM news').all();
-  const update = db.prepare('UPDATE news SET content = @content, img_url = @imgUrl WHERE id = @id');
+async function runMigrations() {
+  const newsColumns = await getNewsColumns();
 
-  const migrate = db.transaction((allRows) => {
-    for (const row of allRows) {
-      const hasEditedText = newsColumns.includes('edited_text') && row.edited_text;
-      const hasEditedImage = newsColumns.includes('edited_image_url') && row.edited_image_url;
+  const migrations = [
+    ['sent_to_telegram', 'ALTER TABLE news ADD COLUMN sent_to_telegram INTEGER DEFAULT 0'],
+    ['sent_at', 'ALTER TABLE news ADD COLUMN sent_at TEXT'],
+    ['img_url', 'ALTER TABLE news ADD COLUMN img_url TEXT'],
+  ];
+  for (const [column, sql] of migrations) {
+    if (!newsColumns.includes(column)) {
+      await pool.query(sql);
+      logger.info(`DB migration applied: added column '${column}' to news`);
+    }
+  }
+
+  // --- Одноразовая миграция данных: старые записи хранили сырой HTML в content и правки
+  // в edited_text/edited_image_url. Перенести их в новую структуру (content = plain text, img_url
+  // заполнен) и убрать старые колонки (включая hidden, которая больше не используется).
+  const updatedColumns = await getNewsColumns();
+  if (
+    updatedColumns.includes('edited_text') ||
+    updatedColumns.includes('edited_image_url') ||
+    updatedColumns.includes('hidden')
+  ) {
+    const { rows } = await pool.query('SELECT * FROM news');
+
+    for (const row of rows) {
+      const hasEditedText = updatedColumns.includes('edited_text') && row.edited_text;
+      const hasEditedImage = updatedColumns.includes('edited_image_url') && row.edited_image_url;
 
       const newContent = hasEditedText
         ? row.edited_text
@@ -58,18 +69,23 @@ if (newsColumns.includes('edited_text') || newsColumns.includes('edited_image_ur
         ? row.img_url
         : (hasEditedImage ? row.edited_image_url : extractImageUrl(row.content || ''));
 
-      update.run({ content: newContent, imgUrl: newImgUrl || null, id: row.id });
+      await pool.query('UPDATE news SET content = $1, img_url = $2 WHERE id = $3', [
+        newContent,
+        newImgUrl || null,
+        row.id,
+      ]);
     }
-  });
 
-  migrate(rows);
-  logger.info(`Data migration: converted ${rows.length} rows to plain-text content + img_url`);
+    logger.info(`Data migration: converted ${rows.length} rows to plain-text content + img_url`);
 
-  if (newsColumns.includes('edited_text')) db.exec('ALTER TABLE news DROP COLUMN edited_text');
-  if (newsColumns.includes('edited_image_url')) db.exec('ALTER TABLE news DROP COLUMN edited_image_url');
-  if (newsColumns.includes('hidden')) db.exec('ALTER TABLE news DROP COLUMN hidden');
-  logger.info('DB migration applied: dropped legacy columns edited_text/edited_image_url/hidden');
+    if (updatedColumns.includes('edited_text')) await pool.query('ALTER TABLE news DROP COLUMN edited_text');
+    if (updatedColumns.includes('edited_image_url')) await pool.query('ALTER TABLE news DROP COLUMN edited_image_url');
+    if (updatedColumns.includes('hidden')) await pool.query('ALTER TABLE news DROP COLUMN hidden');
+    logger.info('DB migration applied: dropped legacy columns edited_text/edited_image_url/hidden');
+  }
 }
+
+await runMigrations();
 
 // --- Карта source_id -> { name, region, requiresProxy, enabled } из config/sources.json ---
 const sourcesConfigPath = path.join(__dirname, '..', 'config', 'sources.json');
@@ -125,65 +141,82 @@ function enrichPublicNews(news) {
   };
 }
 
-app.get('/api/public/news', (req, res) => {
-  const { jurisdiction, country, date, q, page = 1, limit = 20 } = req.query;
-  const pageNum = Math.max(1, Number(page) || 1);
-  const limitNum = Math.min(50, Math.max(1, Number(limit) || 20));
-  const offset = (pageNum - 1) * limitNum;
+app.get('/api/public/news', async (req, res) => {
+  try {
+    const { jurisdiction, country, date, q, page = 1, limit = 20 } = req.query;
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.min(50, Math.max(1, Number(limit) || 20));
+    const offset = (pageNum - 1) * limitNum;
 
-  let where = [];
-  let params = {};
+    let where = [];
+    let params = [];
 
-  if (jurisdiction) {
-    where.push('jurisdiction = @jurisdiction');
-    params.jurisdiction = jurisdiction;
+    if (jurisdiction) {
+      params.push(jurisdiction);
+      where.push(`jurisdiction = $${params.length}`);
+    }
+    if (country) {
+      params.push(country);
+      where.push(`country = $${params.length}`);
+    }
+    if (date === 'today' || date === 'yesterday') {
+      const now = new Date();
+      const dayOffset = date === 'yesterday' ? 1 : 0;
+      const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOffset);
+      const start = target.toISOString();
+      const end = new Date(target.getTime() + 24 * 60 * 60 * 1000).toISOString();
+      params.push(start);
+      where.push(`published_at >= $${params.length}`);
+      params.push(end);
+      where.push(`published_at < $${params.length}`);
+    }
+    if (q) {
+      params.push(`%${q}%`);
+      where.push(`title ILIKE $${params.length}`);
+    }
+
+    const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const newsParams = [...params, limitNum, offset];
+    const { rows: news } = await pool.query(
+      `SELECT * FROM news ${whereClause} ORDER BY published_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      newsParams
+    );
+
+    const { rows: countRows } = await pool.query(
+      `SELECT COUNT(*) as count FROM news ${whereClause}`,
+      params
+    );
+
+    res.json({
+      news: news.map(enrichPublicNews),
+      total: Number(countRows[0].count),
+      page: pageNum,
+      limit: limitNum,
+    });
+  } catch (err) {
+    logger.error('Error in /api/public/news', { error: err.message });
+    res.status(500).json({ error: err.message });
   }
-  if (country) {
-    where.push('country = @country');
-    params.country = country;
-  }
-  if (date === 'today' || date === 'yesterday') {
-    const now = new Date();
-    const dayOffset = date === 'yesterday' ? 1 : 0;
-    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOffset);
-    const start = target.toISOString();
-    const end = new Date(target.getTime() + 24 * 60 * 60 * 1000).toISOString();
-    where.push('published_at >= @dateStart AND published_at < @dateEnd');
-    params.dateStart = start;
-    params.dateEnd = end;
-  }
-  if (q) {
-    where.push('title LIKE @q');
-    params.q = `%${q}%`;
-  }
-
-  const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-
-  const news = db
-    .prepare(
-      `SELECT * FROM news ${whereClause} ORDER BY published_at DESC LIMIT @limit OFFSET @offset`
-    )
-    .all({ ...params, limit: limitNum, offset });
-
-  const total = db
-    .prepare(`SELECT COUNT(*) as count FROM news ${whereClause}`)
-    .get(params).count;
-
-  res.json({ news: news.map(enrichPublicNews), total, page: pageNum, limit: limitNum });
 });
 
-app.get('/api/public/filters', (req, res) => {
-  const jurisdictions = db
-    .prepare("SELECT DISTINCT jurisdiction FROM news WHERE jurisdiction IS NOT NULL AND jurisdiction != '' ORDER BY jurisdiction")
-    .all()
-    .map((r) => r.jurisdiction);
+app.get('/api/public/filters', async (req, res) => {
+  try {
+    const { rows: jRows } = await pool.query(
+      "SELECT DISTINCT jurisdiction FROM news WHERE jurisdiction IS NOT NULL AND jurisdiction != '' ORDER BY jurisdiction"
+    );
+    const { rows: cRows } = await pool.query(
+      "SELECT DISTINCT country FROM news WHERE country IS NOT NULL AND country != '' ORDER BY country"
+    );
 
-  const countries = db
-    .prepare("SELECT DISTINCT country FROM news WHERE country IS NOT NULL AND country != '' ORDER BY country")
-    .all()
-    .map((r) => r.country);
-
-  res.json({ jurisdictions, countries });
+    res.json({
+      jurisdictions: jRows.map((r) => r.jurisdiction),
+      countries: cRows.map((r) => r.country),
+    });
+  } catch (err) {
+    logger.error('Error in /api/public/filters', { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.use((req, res, next) => {
@@ -226,93 +259,115 @@ function enrichNews(news) {
   };
 }
 
-app.get('/api/news', (req, res) => {
-  const { source, status, date, page = 1, limit = 30 } = req.query;
-  const offset = (Number(page) - 1) * Number(limit);
+app.get('/api/news', async (req, res) => {
+  try {
+    const { source, status, date, page = 1, limit = 30 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
 
-  let where = [];
-  let params = {};
+    let where = [];
+    let params = [];
 
-  if (source) {
-    where.push('source_id = @source');
-    params.source = source;
+    if (source) {
+      params.push(source);
+      where.push(`source_id = $${params.length}`);
+    }
+    if (status === 'sent') {
+      where.push('sent_to_telegram = 1');
+    } else if (status === 'unsent') {
+      where.push('sent_to_telegram = 0');
+    }
+    if (date === 'today' || date === 'yesterday') {
+      const now = new Date();
+      const dayOffset = date === 'yesterday' ? 1 : 0;
+      const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOffset);
+      const start = target.toISOString();
+      const end = new Date(target.getTime() + 24 * 60 * 60 * 1000).toISOString();
+      params.push(start);
+      where.push(`published_at >= $${params.length}`);
+      params.push(end);
+      where.push(`published_at < $${params.length}`);
+    }
+
+    const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const newsParams = [...params, Number(limit), offset];
+    const { rows: news } = await pool.query(
+      `SELECT * FROM news ${whereClause} ORDER BY published_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      newsParams
+    );
+
+    const { rows: countRows } = await pool.query(
+      `SELECT COUNT(*) as count FROM news ${whereClause}`,
+      params
+    );
+
+    res.json({
+      news: news.map(enrichNews),
+      total: Number(countRows[0].count),
+      page: Number(page),
+      limit: Number(limit),
+    });
+  } catch (err) {
+    logger.error('Error in /api/news', { error: err.message });
+    res.status(500).json({ error: err.message });
   }
-  if (status === 'sent') {
-    where.push('sent_to_telegram = 1');
-  } else if (status === 'unsent') {
-    where.push('sent_to_telegram = 0');
-  }
-  if (date === 'today' || date === 'yesterday') {
-    const now = new Date();
-    const dayOffset = date === 'yesterday' ? 1 : 0;
-    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOffset);
-    const start = target.toISOString();
-    const end = new Date(target.getTime() + 24 * 60 * 60 * 1000).toISOString();
-    where.push('published_at >= @dateStart AND published_at < @dateEnd');
-    params.dateStart = start;
-    params.dateEnd = end;
-  }
-
-  const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-
-  const news = db
-    .prepare(
-      `SELECT * FROM news ${whereClause} ORDER BY published_at DESC LIMIT @limit OFFSET @offset`
-    )
-    .all({ ...params, limit: Number(limit), offset });
-
-  const total = db
-    .prepare(`SELECT COUNT(*) as count FROM news ${whereClause}`)
-    .get(params).count;
-
-  res.json({ news: news.map(enrichNews), total, page: Number(page), limit: Number(limit) });
 });
 
-app.get('/api/sources', (req, res) => {
-  const sources = db
-    .prepare('SELECT DISTINCT source_id FROM news')
-    .all();
+app.get('/api/sources', async (req, res) => {
+  try {
+    const { rows: sources } = await pool.query('SELECT DISTINCT source_id FROM news');
 
-  const enriched = sources
-    .map((s) => ({ id: s.source_id, ...getSourceInfo(s.source_id) }))
-    .filter((s) => s.enabled)
-    .map((s) => ({ id: s.id, name: s.name }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    const enriched = sources
+      .map((s) => ({ id: s.source_id, ...getSourceInfo(s.source_id) }))
+      .filter((s) => s.enabled)
+      .map((s) => ({ id: s.id, name: s.name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
 
-  res.json(enriched);
+    res.json(enriched);
+  } catch (err) {
+    logger.error('Error in /api/sources', { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.patch('/api/news/:id', (req, res) => {
-  const { id } = req.params;
-  const { title, text, imageUrl } = req.body;
+app.patch('/api/news/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, text, imageUrl } = req.body;
 
-  const updates = [];
-  const params = { id };
+    const updates = [];
+    const params = [];
 
-  if (title !== undefined) {
-    updates.push('title = @title');
-    params.title = title;
+    if (title !== undefined) {
+      params.push(title);
+      updates.push(`title = $${params.length}`);
+    }
+    if (text !== undefined) {
+      params.push(text);
+      updates.push(`content = $${params.length}`);
+    }
+    if (imageUrl !== undefined) {
+      params.push(imageUrl || null);
+      updates.push(`img_url = $${params.length}`);
+    }
+
+    if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+    params.push(id);
+    await pool.query(`UPDATE news SET ${updates.join(', ')} WHERE id = $${params.length}`, params);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error('Error in PATCH /api/news/:id', { error: err.message });
+    res.status(500).json({ error: err.message });
   }
-  if (text !== undefined) {
-    updates.push('content = @content');
-    params.content = text;
-  }
-  if (imageUrl !== undefined) {
-    updates.push('img_url = @imgUrl');
-    params.imgUrl = imageUrl || null;
-  }
-
-  if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
-
-  db.prepare(`UPDATE news SET ${updates.join(', ')} WHERE id = @id`).run(params);
-  res.json({ ok: true });
 });
 
 app.post('/api/news/:id/send', async (req, res) => {
   try {
     const { id } = req.params;
     const { title, text, imageUrl } = req.body;
-    const news = db.prepare('SELECT * FROM news WHERE id = ?').get(id);
+    const { rows } = await pool.query('SELECT * FROM news WHERE id = $1', [id]);
+    const news = rows[0];
     if (!news) return res.status(404).json({ error: 'News not found' });
 
     const finalTitle = title ?? news.title;
@@ -331,12 +386,9 @@ app.post('/api/news/:id/send', async (req, res) => {
       imageRequiresProxy: sourceInfo.requiresProxy,
     });
 
-    db.prepare('UPDATE news SET title = ?, content = ?, img_url = ?, sent_to_telegram = 1, sent_at = ? WHERE id = ?').run(
-      finalTitle,
-      finalText,
-      finalImageUrl || null,
-      new Date().toISOString(),
-      id
+    await pool.query(
+      'UPDATE news SET title = $1, content = $2, img_url = $3, sent_to_telegram = 1, sent_at = $4 WHERE id = $5',
+      [finalTitle, finalText, finalImageUrl || null, new Date().toISOString(), id]
     );
 
     res.json({ ok: true });
@@ -346,11 +398,14 @@ app.post('/api/news/:id/send', async (req, res) => {
   }
 });
 
-
-app.delete('/api/news/:id', (req, res) => {
-  const { id } = req.params;
-  db.prepare('DELETE FROM news WHERE id = ?').run(req.params.id);
-  res.json({ ok: true });
+app.delete('/api/news/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM news WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error('Error in DELETE /api/news/:id', { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.listen(PORT, () => logger.info(`Admin server started on http://localhost:${PORT}`));
