@@ -1,8 +1,8 @@
 // src/backup.js
-// Создаёт резервную копию data/news.db в backups/, с привязкой времени в имени файла.
-// Использует встроенный в better-sqlite3 метод db.backup() — он снимает корректный снимок
-// даже если в базу в этот момент идёт активная запись (например, parser.js вставляет новости) —
-// в отличие от простого копирования файла (cp), которое рискует сковать неконсистентный слез рядов SQLite.
+// Создаёт резервную копию PostgreSQL-базы в backups/, с привязкой времени в имени файла.
+// Использует системный pg_dump (через DATABASE_URL) — он должен быть установлен в системе
+// (пакет postgresql-client). Заменяет ранний метод db.backup() из better-sqlite3, который работал
+// только с локальными SQLite-файлами.
 //
 // Запуск: npm run backup
 // Автоматически удаляет бэкапы старше BACKUP_RETENTION_DAYS дней (по умолчанию 14),
@@ -11,12 +11,14 @@
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import Database from 'better-sqlite3';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import 'dotenv/config';
 import logger from './logger.js';
 
+const execFileAsync = promisify(execFile);
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.join(__dirname, '..', 'data', 'news.db');
 const backupsDir = path.join(__dirname, '..', 'backups');
 
 const RETENTION_DAYS = Number(process.env.BACKUP_RETENTION_DAYS || 14);
@@ -31,7 +33,7 @@ function cleanupOldBackups() {
   if (!fs.existsSync(backupsDir)) return;
 
   const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
-  const files = fs.readdirSync(backupsDir).filter((f) => f.endsWith('.db'));
+  const files = fs.readdirSync(backupsDir).filter((f) => f.endsWith('.sql'));
 
   let removed = 0;
   for (const file of files) {
@@ -49,8 +51,9 @@ function cleanupOldBackups() {
 }
 
 async function runBackup() {
-  if (!fs.existsSync(dbPath)) {
-    logger.error(`Cannot backup: ${dbPath} does not exist`);
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    logger.error('Cannot backup: DATABASE_URL is not set');
     process.exit(1);
   }
 
@@ -58,15 +61,15 @@ async function runBackup() {
     fs.mkdirSync(backupsDir, { recursive: true });
   }
 
-  const backupPath = path.join(backupsDir, `news-${timestamp()}.db`);
-  const db = new Database(dbPath, { readonly: true });
+  const backupPath = path.join(backupsDir, `news-${timestamp()}.sql`);
 
   try {
-    await db.backup(backupPath);
+    await execFileAsync('pg_dump', ['--dbname', databaseUrl, '--file', backupPath, '--format', 'plain']);
     const sizeKb = (fs.statSync(backupPath).size / 1024).toFixed(1);
     logger.info(`Backup created: ${backupPath} (${sizeKb} KB)`);
-  } finally {
-    db.close();
+  } catch (error) {
+    logger.error(`pg_dump failed: ${error.message}`);
+    throw error;
   }
 
   cleanupOldBackups();
