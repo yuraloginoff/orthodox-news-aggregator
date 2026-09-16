@@ -264,27 +264,35 @@ async function runParsingCycle() {
 
   let inserted = 0;
   for (const item of items) {
-    if (insertNews(item)) inserted += 1;
+    const wasInserted = await insertNews(item);
+    if (wasInserted) inserted += 1;
   }
 
   logger.info(`Parsing cycle finished: ${items.length} items fetched, ${inserted} new saved to DB`);
 }
 
-initDb();
-
 const CRON_SCHEDULE = process.env.PARSER_CRON_SCHEDULE || '0 * * * *';
 
-runParsingCycle().catch((error) => {
-  logger.error(`Parsing cycle failed: ${error.message}`, { error });
-});
+async function main() {
+  await initDb();
 
-cron.schedule(CRON_SCHEDULE, () => {
-  runParsingCycle().catch((error) => {
-    logger.error(`Scheduled parsing cycle failed: ${error.message}`, { error });
+  await runParsingCycle().catch((error) => {
+    logger.error(`Parsing cycle failed: ${error.message}`, { error });
   });
-});
 
-logger.info(`Parser scheduled with cron expression: ${CRON_SCHEDULE}`);
+  cron.schedule(CRON_SCHEDULE, () => {
+    runParsingCycle().catch((error) => {
+      logger.error(`Scheduled parsing cycle failed: ${error.message}`, { error });
+    });
+  });
+
+  logger.info(`Parser scheduled with cron expression: ${CRON_SCHEDULE}`);
+}
+
+main().catch((error) => {
+  logger.error(`Fatal error starting parser: ${error.message}`, { error });
+  process.exit(1);
+});
 
 export {
   fetchItem,
