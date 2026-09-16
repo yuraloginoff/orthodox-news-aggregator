@@ -8,13 +8,15 @@
 // (конвертируется из HTML в parser.js на этапе сохранения, а не при каждой отдаче через API).
 //
 // PostgreSQL: использует именованный экспорт `pool` из src/db.js. Все запросы асинхронные.
+// initDb() вызывается здесь же, поскольку admin.js может быть запущен раньше parser.js
+// (например, на свежей базе, где таблицы news ещё нет).
 
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { pool } from './db.js';
+import { pool, initDb } from './db.js';
 import { sendNewsToTelegram } from './telegram.js';
 import { decodeHtmlEntities, htmlToPlainText, truncateText, extractImageUrl } from './contentUtils.js';
 import logger from './logger.js';
@@ -32,6 +34,8 @@ async function getNewsColumns() {
 }
 
 async function runMigrations() {
+  await initDb();
+
   const newsColumns = await getNewsColumns();
 
   const migrations = [
