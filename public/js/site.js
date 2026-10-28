@@ -22,7 +22,7 @@ const prevPageBtn = document.getElementById('prevPage');
 const nextPageBtn = document.getElementById('nextPage');
 
 const JURISDICTION_LABELS = {
-  ROC: 'РПЦ (Московский патриархат)',
+  ROC: 'РПЦ (МП)',
   UOC: 'УПЦ',
   OCU: 'ПЦУ',
   Moldova_ROC: 'Молдова (МП)',
@@ -57,11 +57,11 @@ async function loadFilters() {
     const data = await res.json();
 
     jurisdictionFilterEl.innerHTML =
-      '<option value="">Все</option>' +
+      '<option value="">Все юрисдикции</option>' +
       data.jurisdictions.map((j) => `<option value="${j}">${JURISDICTION_LABELS[j] || j}</option>`).join('');
 
     countryFilterEl.innerHTML =
-      '<option value="">Все</option>' +
+      '<option value="">Все страны</option>' +
       data.countries.map((c) => `<option value="${c}">${COUNTRY_LABELS[c] || c}</option>`).join('');
 
     jurisdictionFilterEl.value = state.jurisdiction;
@@ -94,7 +94,7 @@ function renderCard(news) {
         <span>&middot;</span>
         <time datetime="${news.publishedAt}">${formatDate(news.publishedAt)}</time>
       </div>
-      <h2 class="news-card__title"><a href="${news.link}" target="_blank" rel="noopener noreferrer">${escapeHtml(news.title)}</a></h2>
+      <h2 class="news-card__title h3"><a href="${news.link}" target="_blank" rel="noopener noreferrer">${escapeHtml(news.title)}</a></h2>
       <p class="news-card__summary">${escapeHtml(news.summary)}</p>
       <a class="news-card__link" href="${news.link}" target="_blank" rel="noopener noreferrer">Читать далее &rarr;</a>
     </article>
