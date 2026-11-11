@@ -8,6 +8,7 @@ let state = {
   limit: 20,
   jurisdiction: urlParams.get('jurisdiction') || '',
   country: urlParams.get('country') || '',
+  source: urlParams.get('source') || '',
   date: urlParams.get('date') || '',
   q: urlParams.get('q') || '',
 };
@@ -44,6 +45,7 @@ function syncUrl() {
   const params = new URLSearchParams();
   if (state.jurisdiction) params.set('jurisdiction', state.jurisdiction);
   if (state.country) params.set('country', state.country);
+  if (state.source) params.set('source', state.source);
   if (state.date) params.set('date', state.date);
   if (state.q) params.set('q', state.q);
   if (state.page > 1) params.set('page', String(state.page));
@@ -90,7 +92,9 @@ function renderCard(news) {
     <article class="news-card">
       <div class="news-card__meta">
         ${badge ? `<span class="news-card__badge">${escapeHtml(badge)}</span>` : ''}
-        <span>${escapeHtml(news.sourceName)}</span>
+
+        <span><a class="news-card__source-link" href="/?source=${escapeHtml(news.srcid)}">${escapeHtml(news.sourceName)}</a></span>
+
         <span>&middot;</span>
         <time datetime="${news.publishedAt}">${formatDate(news.publishedAt)}</time>
       </div>
@@ -113,6 +117,7 @@ async function loadNews() {
     country: state.country,
     date: state.date,
     q: state.q,
+    source: state.source,
   });
 
   syncUrl();

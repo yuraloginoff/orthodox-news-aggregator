@@ -134,6 +134,7 @@ function enrichPublicNews(news) {
 
   return {
     id: news.id,
+    srcid: news.source_id,
     title: decodeHtmlEntities(news.title),
     link: news.link,
     summary: news.content || '',
@@ -147,13 +148,18 @@ function enrichPublicNews(news) {
 
 app.get('/api/public/news', async (req, res) => {
   try {
-    const { jurisdiction, country, date, q, page = 1, limit = 20 } = req.query;
+    const { source, jurisdiction, country, date, q, page = 1, limit = 20 } = req.query;
     const pageNum = Math.max(1, Number(page) || 1);
     const limitNum = Math.min(50, Math.max(1, Number(limit) || 20));
     const offset = (pageNum - 1) * limitNum;
 
     let where = [];
     let params = [];
+
+    if (source) {
+      params.push(source);
+      where.push(`source_id = $${params.length}`);
+    }
 
     if (jurisdiction) {
       params.push(jurisdiction);

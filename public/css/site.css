@@ -335,6 +335,16 @@ header {
   color: var(--color-text-muted);
 }
 
+.news-card__source-link {
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.news-card__source-link:hover {
+  color: var(--color-primary);
+}
+
+
 .news-card__badge {
   display: none;
   /* display: inline-flex;
