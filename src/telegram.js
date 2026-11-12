@@ -73,7 +73,8 @@ export function buildMessageText(news) {
   const link = news.link;
   const sourceLabel = escapeMarkdownV2(news.sourceName || 'Первоисточник');
 
-  let message = prefix ? `*${prefix}: ${titleText}*` : `*${titleText}*`;
+  // let message = prefix ? `*${prefix}: ${titleText}*` : `*${titleText}*`;
+  let message = `*${titleText}*`;
 
   if (bodyText) {
     const escapedBody = escapeMarkdownV2(bodyText);
