@@ -183,3 +183,28 @@ footer {
 
 .status-badge.sent { background: #d4efdf; color: #196f3d; }
 .status-badge.unsent { background: #fdebd0; color: #af601a; }
+.status-badge.pending { background: #f5e4f7; color: #7d3098; }
+.status-badge.rejected { background: #fadbd8; color: #922b21; }
+
+.moderation-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eee;
+}
+
+.moderation-actions button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.btn-approve { background: #27ae60; color: #fff; }
+.btn-approve:hover:not(:disabled) { background: #219a52; }
+
+.btn-reject { background: #e74c3c; color: #fff; }
+.btn-reject:hover:not(:disabled) { background: #c0392b; }

@@ -41,28 +41,51 @@ async function initDb() {
       country TEXT,
       fetched_at TEXT,
       sent_to_telegram INTEGER DEFAULT 0,
-      sent_at TEXT
+      sent_at TEXT,
+      moderation_status TEXT DEFAULT 'approved'
     )
   `);
+
+  // Миграция: добавляем колонку если таблицы уже существует
+  try {
+    await pool.query(`ALTER TABLE news ADD COLUMN IF NOT EXISTS moderation_status TEXT DEFAULT 'approved'`);
+    // Устанавливаем approved для старых записей без moderation_status
+    await pool.query(`UPDATE news SET moderation_status = 'approved' WHERE moderation_status IS NULL`);
+  } catch {
+    // колонка уже существует или другая ошибка — игнорируем
+  }
 }
 
-async function insertNews(item, retries = 2) {
+async function insertNews(item, moderationStatus, retries = 2) {
+  const cols = [
+    'source_id', 'title', 'link', 'published_at', 'content', 'img_url',
+    'jurisdiction', 'country', 'fetched_at'
+  ];
+  const vals = [
+    item.sourceId,
+    item.title,
+    item.link,
+    item.pubDate,
+    item.description,
+    item.imgUrl || null,
+    item.jurisdiction || null,
+    item.country || null,
+    new Date().toISOString(),
+  ];
+
+  // Если передан moderation_status — добавляем в запрос, иначе используется DEFAULT ('approved')
+  if (moderationStatus !== undefined) {
+    cols.push('moderation_status');
+    vals.push(moderationStatus);
+  }
+
+  const placeholders = vals.map((_, i) => `$${i + 1}`).join(', ');
+  const colList = cols.join(', ');
+
   try {
     const result = await pool.query(
-      `INSERT INTO news (source_id, title, link, published_at, content, img_url, jurisdiction, country, fetched_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT (link) DO NOTHING`,
-      [
-        item.sourceId,
-        item.title,
-        item.link,
-        item.pubDate,
-        item.description,
-        item.imgUrl || null,
-        item.jurisdiction || null,
-        item.country || null,
-        new Date().toISOString(),
-      ]
+      `INSERT INTO news (${colList}) VALUES (${placeholders}) ON CONFLICT (link) DO NOTHING`,
+      vals
     );
     return result.rowCount > 0;
   } catch (err) {
@@ -73,7 +96,7 @@ async function insertNews(item, retries = 2) {
 
     if (isConnectionError && retries > 0) {
       await new Promise((resolve) => setTimeout(resolve, 500));
-      return insertNews(item, retries - 1);
+      return insertNews(item, moderationStatus, retries - 1);
     }
     throw err;
   }

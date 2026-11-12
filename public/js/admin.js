@@ -74,6 +74,12 @@ function renderNewsCard(news) {
     ? '<span class="status-badge sent">отправлено</span>'
     : '<span class="status-badge unsent">не отправлено</span>';
 
+  const modBadge = news.moderation_status === 'pending'
+    ? '<span class="status-badge pending">на модерации</span>'
+    : news.moderation_status === 'rejected'
+      ? '<span class="status-badge rejected">отклонено</span>'
+      : '';
+
   const date = news.publishedAt
     ? new Date(news.publishedAt).toLocaleString('ru-RU')
     : '—';
@@ -85,9 +91,17 @@ function renderNewsCard(news) {
        </div>`
     : `<div class="image-preview empty-image">Картинка не найдена в источнике</div>`;
 
+  // Кнопки модерации — показываем только для pending
+  const moderationButtons = news.moderation_status === 'pending' ? `
+    <div class="moderation-actions">
+      <button class="btn-approve" data-action="approve" data-id="${news.id}">✓ Одобрить</button>
+      <button class="btn-reject" data-action="reject" data-id="${news.id}">✗ Отклонить</button>
+    </div>
+  ` : '';
+
   return `
     <div class="news-card ${news.sent_to_telegram ? 'sent' : ''}" data-id="${news.id}">
-      <div class="meta">${escapeHtml(news.source_name)} • ${news.sourceId} • ${date} ${sentBadge}</div>
+      <div class="meta">${escapeHtml(news.source_name)} • ${news.sourceId} • ${date} ${sentBadge} ${modBadge}</div>
 
       <label class="field-label">Заголовок</label>
       <textarea class="title" rows="2">${escapeHtml(news.title)}</textarea>
@@ -99,6 +113,8 @@ function renderNewsCard(news) {
 
       <label class="field-label">URL картинки (можно заменить вручную)</label>
       <input class="image-url-input" type="text" value="${escapeAttr(news.image_url || '')}" placeholder="https://...">
+
+      ${moderationButtons}
 
       <div class="actions">
         <button class="btn-save" data-action="save" data-id="${news.id}">Сохранить</button>
@@ -199,6 +215,48 @@ function attachHandlers() {
         alert('Не удалось удалить новость');
         btn.disabled = false;
         btn.textContent = 'Удалить';
+      }
+    });
+  });
+
+  // Кнопка «Одобрить»
+  document.querySelectorAll('[data-action="approve"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+
+      btn.disabled = true;
+      btn.textContent = 'Одобрение...';
+
+      const res = await fetch(`/api/news/${id}/approve`, { method: 'POST' });
+
+      if (res.ok) {
+        await loadNews({ preserveScroll: true });
+      } else {
+        const err = await res.json();
+        alert('Ошибка одобрения: ' + err.error);
+        btn.disabled = false;
+        btn.textContent = '✓ Одобрить';
+      }
+    });
+  });
+
+  // Кнопка «Отклонить»
+  document.querySelectorAll('[data-action="reject"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+
+      btn.disabled = true;
+      btn.textContent = 'Отклонение...';
+
+      const res = await fetch(`/api/news/${id}/reject`, { method: 'POST' });
+
+      if (res.ok) {
+        await loadNews({ preserveScroll: true });
+      } else {
+        const err = await res.json();
+        alert('Ошибка отклонения: ' + err.error);
+        btn.disabled = false;
+        btn.textContent = '✗ Отклонить';
       }
     });
   });

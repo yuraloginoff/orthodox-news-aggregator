@@ -156,6 +156,9 @@ app.get('/api/public/news', async (req, res) => {
     let where = [];
     let params = [];
 
+    // Публичная лента показывает только одобренные новости
+    where.push(`moderation_status = 'approved'`);
+
     if (source) {
       params.push(source);
       where.push(`source_id = $${params.length}`);
@@ -266,6 +269,7 @@ function enrichNews(news) {
     source_name: sourceInfo.name,
     source_region: sourceInfo.region,
     source_requires_proxy: sourceInfo.requiresProxy,
+    moderation_status: news.moderation_status || 'approved',
   };
 }
 
@@ -414,6 +418,36 @@ app.delete('/api/news/:id', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     logger.error('Error in DELETE /api/news/:id', { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Модерация новостей ---
+
+app.post('/api/news/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query(
+      'UPDATE news SET moderation_status = \'approved\', sent_to_telegram = 0, sent_at = NULL WHERE id = $1',
+      [id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error('Error in POST /api/news/:id/approve', { error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/news/:id/reject', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query(
+      'UPDATE news SET moderation_status = \'rejected\' WHERE id = $1',
+      [id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error('Error in POST /api/news/:id/reject', { error: err.message });
     res.status(500).json({ error: err.message });
   }
 });

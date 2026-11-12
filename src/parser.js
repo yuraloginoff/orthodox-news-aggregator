@@ -264,7 +264,9 @@ async function runParsingCycle() {
 
   let inserted = 0;
   for (const item of items) {
-    const wasInserted = await insertNews(item);
+    // UA3 требует премодерации — остальные автоматически approved
+    const moderationStatus = item.sourceId === 'UA3' ? 'pending' : undefined;
+    const wasInserted = await insertNews(item, moderationStatus);
     if (wasInserted) inserted += 1;
   }
 
