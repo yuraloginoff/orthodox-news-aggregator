@@ -16,6 +16,7 @@ let state = {
 const newsListEl = document.getElementById('newsList');
 const jurisdictionFilterEl = document.getElementById('jurisdictionFilter');
 const countryFilterEl = document.getElementById('countryFilter');
+const sourceFilterEl = document.getElementById('sourceFilter');
 const dateFilterEl = document.getElementById('dateFilter');
 const searchInputEl = document.getElementById('searchInput');
 const pageInfoEl = document.getElementById('pageInfo');
@@ -51,6 +52,19 @@ function syncUrl() {
   if (state.page > 1) params.set('page', String(state.page));
   const query = params.toString();
   history.replaceState(null, '', window.location.pathname + (query ? `?${query}` : ''));
+}
+
+async function loadSources() {
+  try {
+    const res = await fetch('/api/sources');
+    const sources = await res.json();
+    sourceFilterEl.innerHTML =
+      '<option value="">Все источники</option>' +
+      sources.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+    sourceFilterEl.value = state.source;
+  } catch (err) {
+    console.error('Failed to load sources', err);
+  }
 }
 
 async function loadFilters() {
@@ -164,6 +178,12 @@ countryFilterEl.addEventListener('change', (e) => {
   loadNews();
 });
 
+sourceFilterEl.addEventListener('change', (e) => {
+  state.source = e.target.value;
+  state.page = 1;
+  loadNews();
+});
+
 dateFilterEl.addEventListener('change', (e) => {
   state.date = e.target.value;
   state.page = 1;
@@ -217,5 +237,6 @@ searchInputEl.value = state.q;
   });
 })();
 
+loadSources();
 loadFilters();
 loadNews();
