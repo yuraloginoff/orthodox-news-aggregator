@@ -38,13 +38,14 @@ async function main() {
   await runParser();
 
 
-  cron.schedule('0 * * * *', async () => {
+  const cronSchedule = process.env.PARSER_CRON_SCHEDULE || '0 * * * *';
+
+  cron.schedule(cronSchedule, async () => {
     logger.info('Scheduled parser run');
     await runParser();
   });
 
-
-  logger.info('Parser scheduled to run every hour');
+  logger.info(`Parser scheduled with cron: ${cronSchedule}`);
 }
 
 
