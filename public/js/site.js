@@ -219,7 +219,10 @@ searchInputEl.value = state.q;
 (function () {
   const toggle = document.getElementById('themeToggle');
   const root = document.documentElement;
-  let theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  let theme = localStorage.getItem('theme');
+  if (!theme) {
+    theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
   root.setAttribute('data-theme', theme);
 
   function renderIcon() {
@@ -232,6 +235,7 @@ searchInputEl.value = state.q;
   renderIcon();
   toggle.addEventListener('click', () => {
     theme = theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('theme', theme);
     root.setAttribute('data-theme', theme);
     renderIcon();
   });
