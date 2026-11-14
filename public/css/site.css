@@ -53,20 +53,20 @@
 }
 
 [data-theme="light"] {
-  --color-bg: #f7f6f2;
-  --color-surface: #f9f8f5;
+  --color-bg: #F5F3EF;
+  --color-surface: #fff;
   --color-surface-2: #fbfbf9;
   --color-surface-offset: #f0eee8;
   --color-surface-offset-2: #e8e5dd;
   --color-divider: #ddd9d0;
   --color-border: #d2cdc2;
 
-  --color-text: #292520;
-  --color-text-muted: #6f6a60;
-  --color-text-faint: #a7a196;
+  --color-text: #222;
+  --color-text-muted: #333;
+  --color-text-faint: #444;
   --color-text-inverse: #f9f8f4;
 
-  --color-primary: #2a4d6e;
+  --color-primary: #076678;
   --color-primary-hover: #1c3850;
   --color-primary-active: #142a3c;
   --color-primary-highlight: #d9e2ea;
