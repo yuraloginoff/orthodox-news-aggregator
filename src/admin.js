@@ -1,7 +1,6 @@
 // src/admin.js
-// Легкий Express-сервер для админки «Glas».
-// Позволяет просматривать спаршенные новости, редактировать заголовок, текст и
-// картинку перед отправкой в Telegram-канал, удалять ненужные.
+// Express-сервер для админки «Glas» — только авторизованные API и роуты.
+// Публичный сайт (статика + /api/public/*) вынесен в src/server.js.
 //
 // title, content и img_url редактируются и сохраняются напрямую в те же колонки,
 // без отдельных edited_* полей. content в базе — это готовый plain text для Telegram
@@ -19,12 +18,15 @@ import { fileURLToPath } from 'url';
 import { pool, initDb } from './db.js';
 import { sendNewsToTelegram } from './telegram.js';
 import { decodeHtmlEntities, htmlToPlainText, truncateText, extractImageUrl } from './contentUtils.js';
+import { getSourcesRouter } from './api.js';
 import logger from './logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.ADMIN_PORT || 3001;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+
+// --- Миграции БД ---
 
 async function getNewsColumns() {
   const { rows } = await pool.query(
@@ -125,113 +127,32 @@ function getSourceInfo(sourceId) {
 }
 
 app.use(express.json());
+
+// --- Роут для admin.html с Basic Auth ---
+app.get('/admin.html', (req, res) => {
+  if (!ADMIN_PASSWORD) return res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    res.set('WWW-Authenticate', 'Basic realm="Glas Admin"');
+    return res.status(401).send('Authentication required');
+  }
+
+  const decoded = Buffer.from(authHeader.split(' ')[1], 'base64').toString();
+  const [, password] = decoded.split(':');
+
+  if (password !== ADMIN_PASSWORD) {
+    res.set('WWW-Authenticate', 'Basic realm="Glas Admin"');
+    return res.status(401).send('Invalid password');
+  }
+
+  res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
+});
+
+// Статика админки (CSS, JS) — после роута /admin.html, но до middleware авторизации
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// --- Публичные API-роуты для ленты новостей (public/index.html). Доступны всем без Basic Auth,
-// потому размещены до middleware авторизации. Не отдают внутренние поля (sent_to_telegram, sent_at).
-function enrichPublicNews(news) {
-  const sourceInfo = getSourceInfo(news.source_id);
-
-  return {
-    id: news.id,
-    srcid: news.source_id,
-    title: decodeHtmlEntities(news.title),
-    link: news.link,
-    summary: news.content || '',
-    publishedAt: news.published_at,
-    sourceName: sourceInfo.name,
-    sourceRegion: sourceInfo.region,
-    jurisdiction: news.jurisdiction || null,
-    country: news.country || null,
-  };
-}
-
-app.get('/api/public/news', async (req, res) => {
-  try {
-    const { source, jurisdiction, country, date, q, page = 1, limit = 20 } = req.query;
-    const pageNum = Math.max(1, Number(page) || 1);
-    const limitNum = Math.min(50, Math.max(1, Number(limit) || 20));
-    const offset = (pageNum - 1) * limitNum;
-
-    let where = [];
-    let params = [];
-
-    // Публичная лента показывает только одобренные новости
-    where.push(`moderation_status = 'approved'`);
-
-    if (source) {
-      params.push(source);
-      where.push(`source_id = $${params.length}`);
-    }
-
-    if (jurisdiction) {
-      params.push(jurisdiction);
-      where.push(`jurisdiction = $${params.length}`);
-    }
-    if (country) {
-      params.push(country);
-      where.push(`country = $${params.length}`);
-    }
-    if (date === 'today' || date === 'yesterday') {
-      const now = new Date();
-      const dayOffset = date === 'yesterday' ? 1 : 0;
-      const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOffset);
-      const start = target.toISOString();
-      const end = new Date(target.getTime() + 24 * 60 * 60 * 1000).toISOString();
-      params.push(start);
-      where.push(`published_at >= $${params.length}`);
-      params.push(end);
-      where.push(`published_at < $${params.length}`);
-    }
-    if (q) {
-      params.push(`%${q}%`);
-      where.push(`title ILIKE $${params.length}`);
-    }
-
-    const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-
-    const newsParams = [...params, limitNum, offset];
-    const { rows: news } = await pool.query(
-      `SELECT * FROM news ${whereClause} ORDER BY published_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      newsParams
-    );
-
-    const { rows: countRows } = await pool.query(
-      `SELECT COUNT(*) as count FROM news ${whereClause}`,
-      params
-    );
-
-    res.json({
-      news: news.map(enrichPublicNews),
-      total: Number(countRows[0].count),
-      page: pageNum,
-      limit: limitNum,
-    });
-  } catch (err) {
-    logger.error('Error in /api/public/news', { error: err.message });
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/public/filters', async (req, res) => {
-  try {
-    const { rows: jRows } = await pool.query(
-      "SELECT DISTINCT jurisdiction FROM news WHERE jurisdiction IS NOT NULL AND jurisdiction != '' ORDER BY jurisdiction"
-    );
-    const { rows: cRows } = await pool.query(
-      "SELECT DISTINCT country FROM news WHERE country IS NOT NULL AND country != '' ORDER BY country"
-    );
-
-    res.json({
-      jurisdictions: jRows.map((r) => r.jurisdiction),
-      countries: cRows.map((r) => r.country),
-    });
-  } catch (err) {
-    logger.error('Error in /api/public/filters', { error: err.message });
-    res.status(500).json({ error: err.message });
-  }
-});
-
+// --- Middleware авторизации для админских API ---
 app.use((req, res, next) => {
   if (!ADMIN_PASSWORD) return next();
 
@@ -251,6 +172,8 @@ app.use((req, res, next) => {
 
   next();
 });
+
+// --- Админские API-роуты ---
 
 function enrichNews(news) {
   const sourceInfo = getSourceInfo(news.source_id);
@@ -327,22 +250,7 @@ app.get('/api/news', async (req, res) => {
   }
 });
 
-app.get('/api/sources', async (req, res) => {
-  try {
-    const { rows: sources } = await pool.query('SELECT DISTINCT source_id FROM news');
-
-    const enriched = sources
-      .map((s) => ({ id: s.source_id, ...getSourceInfo(s.source_id) }))
-      .filter((s) => s.enabled)
-      .map((s) => ({ id: s.id, name: s.name }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-
-    res.json(enriched);
-  } catch (err) {
-    logger.error('Error in /api/sources', { error: err.message });
-    res.status(500).json({ error: err.message });
-  }
-});
+app.get('/api/sources', getSourcesRouter(sourceInfoById));
 
 app.patch('/api/news/:id', async (req, res) => {
   try {
