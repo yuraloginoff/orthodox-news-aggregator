@@ -24,6 +24,7 @@ import logger from './logger.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.ADMIN_PORT || 3001;
+const ADMIN_USER = process.env.ADMIN_USER || 'glas';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 // --- Миграции БД ---
@@ -139,11 +140,11 @@ app.get('/admin.html', (req, res) => {
   }
 
   const decoded = Buffer.from(authHeader.split(' ')[1], 'base64').toString();
-  const [, password] = decoded.split(':');
+  const [user, password] = decoded.split(':');
 
-  if (password !== ADMIN_PASSWORD) {
+  if (user !== ADMIN_USER || password !== ADMIN_PASSWORD) {
     res.set('WWW-Authenticate', 'Basic realm="Glas Admin"');
-    return res.status(401).send('Invalid password');
+    return res.status(401).send('Invalid credentials');
   }
 
   res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
@@ -163,11 +164,11 @@ app.use((req, res, next) => {
   }
 
   const decoded = Buffer.from(authHeader.split(' ')[1], 'base64').toString();
-  const [, password] = decoded.split(':');
+  const [user, password] = decoded.split(':');
 
-  if (password !== ADMIN_PASSWORD) {
+  if (user !== ADMIN_USER || password !== ADMIN_PASSWORD) {
     res.set('WWW-Authenticate', 'Basic realm="Glas Admin"');
-    return res.status(401).send('Invalid password');
+    return res.status(401).send('Invalid credentials');
   }
 
   next();
