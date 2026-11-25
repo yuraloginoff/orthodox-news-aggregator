@@ -5,10 +5,7 @@
   "main": "src/parser.js",
   "type": "module",
   "scripts": {
-    "start": "node src/parser.js",
-    "dev": "node --watch src/parser.js",
-    "admin": "node src/admin.js",
-    "public": "node src/server.js",
+    "start": "node src/app.js",
     "backup": "node src/backup.js"
   },
   "keywords": [
