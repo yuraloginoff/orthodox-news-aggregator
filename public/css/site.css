@@ -37,7 +37,7 @@
   --text-lg: 1.272rem;  /* h3 */
   --text-xl: 1.6179rem;  /* h2 */
   --text-xxl: 2.058rem;  /* h1 */
-
+  --text-2xl: clamp(2rem, 1.2rem + 2.5vw, 3.25rem);
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -205,23 +205,30 @@ header {
 .header__links {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-4);
 }
-.tg-link { width: 25px; height: 25px;}
-.tg-link:before {
-  content: "";
-  display: inline-block;
-  width: 25px; height: 25px;
-  margin-right: 3px;
-  vertical-align: -4px;
-  mask-size: contain;
-  mask-repeat: no-repeat;
-  mask-position: center;
-  transition: background-color 0.3s ease;
-  opacity: 1;
-  background-color: var(--color-text-faint);
-  mask-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0OTYgNTEyIj48IS0tISBGb250IEF3ZXNvbWUgUHJvIDYuNS4xIGJ5IEBmb250YXdlc29tZSAtIGh0dHBzOi8vZm9udGF3ZXNvbWUuY29tIExpY2Vuc2UgLSBodHRwczovL2ZvbnRhd2Vzb21lLmNvbS9saWNlbnNlIChDb21tZXJjaWFsIExpY2Vuc2UpIENvcHlyaWdodCAyMDIzIEZvbnRpY29ucywgSW5jLiAtLT48cGF0aCBkPSJNMjQ4LDhDMTExLjAzMyw4LDAsMTE5LjAzMywwLDI1NlMxMTEuMDMzLDUwNCwyNDgsNTA0LDQ5NiwzOTIuOTY3LDQ5NiwyNTYsMzg0Ljk2Nyw4LDI0OCw4Wk0zNjIuOTUyLDE3Ni42NmMtMy43MzIsMzkuMjE1LTE5Ljg4MSwxMzQuMzc4LTI4LjEsMTc4LjMtMy40NzYsMTguNTg0LTEwLjMyMiwyNC44MTYtMTYuOTQ4LDI1LjQyNS0xNC40LDEuMzI2LTI1LjMzOC05LjUxNy0zOS4yODctMTguNjYxLTIxLjgyNy0xNC4zMDgtMzQuMTU4LTIzLjIxNS01NS4zNDYtMzcuMTc3LTI0LjQ4NS0xNi4xMzUtOC42MTItMjUsNS4zNDItMzkuNSwzLjY1Mi0zLjc5Myw2Ny4xMDctNjEuNTEsNjguMzM1LTY2Ljc0Ni4xNTMtLjY1NS4zLTMuMS0xLjE1NC00LjM4NHMtMy41OS0uODQ5LTUuMTM1LS41cS0zLjI4My43NDYtMTA0LjYwOCw2OS4xNDItMTQuODQ1LDEwLjE5NC0yNi44OTQsOS45MzRjLTguODU1LS4xOTEtMjUuODg4LTUuMDA2LTM4LjU1MS05LjEyMy0xNS41MzEtNS4wNDgtMjcuODc1LTcuNzE3LTI2LjgtMTYuMjkxcS44NC02LjcsMTguNDUtMTMuNywxMDguNDQ2LTQ3LjI0OCwxNDQuNjI4LTYyLjNjNjguODcyLTI4LjY0Nyw4My4xODMtMzMuNjIzLDkyLjUxMS0zMy43ODksMi4wNTItLjAzNCw2LjYzOS40NzQsOS42MSwyLjg4NWExMC40NTIsMTAuNDUyLDAsMCwxLDMuNTMsNi43MTZBNDMuNzY1LDQzLjc2NSwwLDAsMSwzNjIuOTUyLDE3Ni42NloiLz48L3N2Zz4=");
-}
+  .nav-link { color: var(--color-text); text-decoration: none;}
+  .nav-link:hover,
+  .nav-link.current {
+    text-decoration: underline;
+    text-underline-position: under;
+  }
+
+  .tg-link { width: 25px; height: 25px;}
+  .tg-link:before {
+    content: "";
+    display: inline-block;
+    width: 25px; height: 25px;
+    margin-right: 3px;
+    vertical-align: -4px;
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    transition: background-color 0.3s ease;
+    opacity: 1;
+    background-color: var(--color-text-faint);
+    mask-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0OTYgNTEyIj48IS0tISBGb250IEF3ZXNvbWUgUHJvIDYuNS4xIGJ5IEBmb250YXdlc29tZSAtIGh0dHBzOi8vZm9udGF3ZXNvbWUuY29tIExpY2Vuc2UgLSBodHRwczovL2ZvbnRhd2Vzb21lLmNvbS9saWNlbnNlIChDb21tZXJjaWFsIExpY2Vuc2UpIENvcHlyaWdodCAyMDIzIEZvbnRpY29ucywgSW5jLiAtLT48cGF0aCBkPSJNMjQ4LDhDMTExLjAzMyw4LDAsMTE5LjAzMywwLDI1NlMxMTEuMDMzLDUwNCwyNDgsNTA0LDQ5NiwzOTIuOTY3LDQ5NiwyNTYsMzg0Ljk2Nyw4LDI0OCw4Wk0zNjIuOTUyLDE3Ni42NmMtMy43MzIsMzkuMjE1LTE5Ljg4MSwxMzQuMzc4LTI4LjEsMTc4LjMtMy40NzYsMTguNTg0LTEwLjMyMiwyNC44MTYtMTYuOTQ4LDI1LjQyNS0xNC40LDEuMzI2LTI1LjMzOC05LjUxNy0zOS4yODctMTguNjYxLTIxLjgyNy0xNC4zMDgtMzQuMTU4LTIzLjIxNS01NS4zNDYtMzcuMTc3LTI0LjQ4NS0xNi4xMzUtOC42MTItMjUsNS4zNDItMzkuNSwzLjY1Mi0zLjc5Myw2Ny4xMDctNjEuNTEsNjguMzM1LTY2Ljc0Ni4xNTMtLjY1NS4zLTMuMS0xLjE1NC00LjM4NHMtMy41OS0uODQ5LTUuMTM1LS41cS0zLjI4My43NDYtMTA0LjYwOCw2OS4xNDItMTQuODQ1LDEwLjE5NC0yNi44OTQsOS45MzRjLTguODU1LS4xOTEtMjUuODg4LTUuMDA2LTM4LjU1MS05LjEyMy0xNS41MzEtNS4wNDgtMjcuODc1LTcuNzE3LTI2LjgtMTYuMjkxcS44NC02LjcsMTguNDUtMTMuNywxMDguNDQ2LTQ3LjI0OCwxNDQuNjI4LTYyLjNjNjguODcyLTI4LjY0Nyw4My4xODMtMzMuNjIzLDkyLjUxMS0zMy43ODksMi4wNTItLjAzNCw2LjYzOS40NzQsOS42MSwyLjg4NWExMC40NTIsMTAuNDUyLDAsMCwxLDMuNTMsNi43MTZBNDMuNzY1LDQzLjc2NSwwLDAsMSwzNjIuOTUyLDE3Ni42NloiLz48L3N2Zz4=");
+  }
 
 .theme-toggle {
   width: 40px;
@@ -244,7 +251,7 @@ header {
   height: 20px;
 }
 
-/* .hero {
+.hero {
   max-width: var(--content-default);
   margin-inline: auto;
   padding: var(--space-16) var(--space-4) var(--space-8);
@@ -263,7 +270,13 @@ header {
   color: var(--color-text-muted);
   max-width: 52ch;
   font-size: var(--text-lg);
-} */
+}
+.hero-img { float: right; width: 40%; margin-left: 0.5rem;}
+.hero-img img{
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
 
 .filters {
   max-width: var(--content-default);
