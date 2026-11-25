@@ -145,7 +145,8 @@
       "url": "https://fetchrss.com/feed/1wwkViGyCE0R1wx2aM9yn37b.rss",
       "jurisdiction": "ROC",
       "country": "RU",
-      "priority": "high"
+      "priority": "high",
+      "enabled": false
     },
     {
       "id": "R19",
