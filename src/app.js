@@ -285,19 +285,24 @@ async function runParsingCycle() {
 
   const items = await fetchAllSources(sources);
   let inserted = 0;
+  let skipped = 0;
   for (const item of items) {
-    const moderationStatus = item.sourceId === 'UA3' ? 'pending' : undefined;
-    const wasInserted = await pool.query(
+    const moderationStatus = item.sourceId === 'UA3' ? 'pending' : 'approved';
+    const result = await pool.query(
       `INSERT INTO news (source_id, title, link, published_at, content, img_url, jurisdiction, country, fetched_at, moderation_status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       ON CONFLICT (link) DO NOTHING`,
+       ON CONFLICT (link) DO NOTHING RETURNING id`,
       [item.sourceId, item.title, item.link, item.pubDate, item.description, item.imgUrl || null,
        item.jurisdiction || null, item.country || null, new Date().toISOString(), moderationStatus]
     );
-    // rowCount > 0 means inserted
+    if (result.rowCount > 0) {
+      inserted++;
+    } else {
+      skipped++;
+    }
   }
 
-  logger.info(`Parsing cycle finished: ${items.length} items fetched`);
+  logger.info(`Parsing cycle finished: ${items.length} items fetched, ${inserted} new, ${skipped} skipped`);
 }
 
 // ========================
