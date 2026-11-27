@@ -75,9 +75,9 @@
 [data-theme="dark"] {
   --color-bg: var(--oc-gray-9);
   --color-surface: var(--oc-gray-8);
-  --color-surface-2: #495057;
-  --color-surface-offset: #202e43;
-  --color-surface-offset-2: #2b2926;
+  --color-surface-2: var(--oc-gray-7);;
+  --color-surface-offset: #var(--oc-gray-5);;
+  --color-surface-offset-2: #var(--oc-gray-6);;
   --color-divider: #38444D;
   --color-border: #38444D;
   --color-text: var(--oc-gray-0);
