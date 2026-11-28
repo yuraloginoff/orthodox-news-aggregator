@@ -32,49 +32,93 @@
       <div class="header__links">
         <nav><a href="/about.html" class="nav-link current">О сайте</a></nav>
 
-        <a class="tg-link" href="https://t.me/glas_news" target="_blank" rel="noopener noreferrer" aria-label="Telegram" style="display:none"></a>
+        <a class="tg-link" href="https://t.me/glas_news" target="_blank" rel="noopener noreferrer" aria-label="Telegram"
+          style="display:none"></a>
         <button id="themeToggle" class="theme-toggle" aria-label="Переключить тему" type="button"></button>
       </div>
     </div>
   </header>
 
-  <main id="main">
+  <main class="about">
     <section class="hero">
-        <div class="hero-img">
-            <img src="/img/patriarh.jpg"alt="Святейший Патриарх Московский и всея Руси Кирилл">
+      <div class="breadcrumbs">
+        <a href="/" class="plain-link"><span>&larr;</span> к новостям</a>
+      </div>
+
+      <div class="hero-grid">
+        <div class="hero-grid_text">
+          <h1>Православные новости<br>
+            <span>в&nbsp;одной ленте</span>
+          </h1>
+
+          <p>Патриархия, епархии, церковные СМИ – свежие новости за&nbsp;1—2 минуты.</p>
+
+          <p>Полный текст открывается на сайте первоисточника.</p>
         </div>
-        <h1>Православные новости <span>в&nbsp;одной ленте</span></h1>
-        <p>Патриархия, епархии, церковные СМИ — свежие новости за&nbsp;1—2 минуты. Полный текст открывается на сайте первоисточника.</p>
+
+        <div class="hero-grid_img">
+          <img src="/img/patriarh.jpg" alt="Святейший Патриарх Московский и всея Руси Кирилл" class="hero-img">
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Источники новостей</h2>
+
+      <p>В настоящий момент новости автоматически собираются из следующих источников:</p>
+
+      <ol class="sources-list">
+        <li data-val="R25">Патриархия.ру</li>
+        <li data-val="R26">Православие.ру</li>
+        <li data-val="R24">Владикавказская епархия</li>
+        <li data-val="R8">Выборгская епархия</li>
+        <li data-val="R9">Гатчинская епархия</li>
+        <li data-val="R13">Екатеринбургская епархия</li>
+        <li data-val="R14">Казанская епархия</li>
+        <li data-val="R19">Красноярская епархия</li>
+        <li data-val="R1">Московская городская епархия</li>
+        <li data-val="R11">Нижегородская епархия</li>
+        <li data-val="R21">Нижнетагильская епархия</li>
+        <li data-val="R4">Одинцовская епархия</li>
+        <li data-val="R17">Омская епархия</li>
+        <li data-val="R22">Пермская епархия</li>
+        <li data-val="R5">Подольская епархия</li>
+        <li data-val="R12">Ростовская епархия</li>
+        <li data-val="R6">Сергиево-Посадская епархия</li>
+        <li data-val="R10">Тихвинская епархия</li>
+        <li data-val="UA3">Союз православных журналистов (СПЖ) (модерация)</li>
+      </ol>
+
+      <p>Последнее обновление списка источников: <time datetime="2026-11-28 00:00">28 ноября 2026</time> г.</p>
     </section>
   </main>
 
-
-    <script>
+  <script>
     (function () {
-    const toggle = document.getElementById('themeToggle');
-    const root = document.documentElement;
-    let theme = localStorage.getItem('theme');
-    if (!theme) {
+      const toggle = document.getElementById('themeToggle');
+      const root = document.documentElement;
+      let theme = localStorage.getItem('theme');
+      if (!theme) {
         theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    root.setAttribute('data-theme', theme);
+      }
+      root.setAttribute('data-theme', theme);
 
-    function renderIcon() {
+      function renderIcon() {
         toggle.innerHTML = theme === 'dark'
-        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>'
-        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
         toggle.setAttribute('aria-label', theme === 'dark' ? 'Переключить на светлую тему' : 'Переключить на тёмную тему');
-    }
+      }
 
-    renderIcon();
-    toggle.addEventListener('click', () => {
+      renderIcon();
+      toggle.addEventListener('click', () => {
         theme = theme === 'dark' ? 'light' : 'dark';
         localStorage.setItem('theme', theme);
         root.setAttribute('data-theme', theme);
         renderIcon();
-    });
+      });
     })();
-    </script>
-
+  </script>
 </body>
+
 </html>
